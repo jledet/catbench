@@ -4,24 +4,14 @@ import sys
 import socket
 import pickle
 import time
+import argparse
 
 port = 8899
 
-config = {
-        'packet_size': 1400,
-        'packet_count': 1000,
-
-        # milliseconds
-        'step_size': -1,
-        'step_begin': 10,
-        'step_end': 0
-        }
-
-
 class Server:
-    def __init__(self, host='', port=port):
-        self.host = host
-        self.port = port
+    def __init__(self, args):
+        self.host = args.host
+        self.port = args.port
 
         self.listen()
         self.read_config()
@@ -51,16 +41,16 @@ class Server:
         self.sock.bind((self.host, self.port))
 
     def step_udp(self):
-        begin = self.config['step_begin']
-        end = self.config['step_end']
-        step = self.config['step_size']
+        begin = self.config['start']
+        end = self.config['end']
+        step = self.config['step']
 
-        for i in range(begin, end, step):
+        for i in range(begin, end, -step):
             self.read_udp(i)
 
     def read_udp(self, i):
-        count = self.config['packet_count']
-        size = self.config['packet_size']
+        count = self.config['pc']
+        size = self.config['ps']
         missed = 0
         x = 0
 
@@ -80,10 +70,10 @@ class Server:
 
 
 class Client:
-    def __init__(self, config, host='localhost', port=port):
-        self.host = host
-        self.port = port
-        self.config = config
+    def __init__(self, args):
+        self.host = args.host
+        self.port = args.port
+        self.config = args.config
 
         self.connect()
         self.open_udp()
@@ -106,17 +96,17 @@ class Client:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def step_udp(self):
-        begin = self.config['step_begin']
-        end = self.config['step_end']
-        step = self.config['step_size']
+        begin = self.config['start']
+        end = self.config['end']
+        step = self.config['step']
 
-        for i in range(begin, end, step):
+        for i in range(begin, end, -step):
             self.send_udp(i)
             time.sleep(0.1)
 
     def send_udp(self, i):
-        size = self.config['packet_size']
-        count = self.config['packet_count']
+        size = self.config['ps']
+        count = self.config['pc']
 
         print(i)
         for x in range(count):
@@ -128,12 +118,39 @@ class Client:
         self.sock.close()
 
 
+class ParseArgs:
+    def __init__(self):
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('-s', dest='server', action='store_true')
+        parser.add_argument('-h', dest='host', default='localhost')
+        parser.add_argument('-p', dest='port', default=8899)
+        parser.add_argument('-ps', dest='ps', default=1400)
+        parser.add_argument('-pc', dest='pc', default=1000)
+        parser.add_argument('-step', dest='step', default=1)
+        parser.add_argument('-start', dest='start', default=10)
+        parser.add_argument('-end', dest='end', default=0)
+
+        args = parser.parse_args()
+
+        self.server = args.server
+        self.host = args.host
+        self.port = args.port
+
+        self.config = {
+            'ps': args.ps,
+            'pc': args.pc,
+            'step': args.step,
+            'start': args.start,
+            'end': args.end
+            }
+
 if __name__ == "__main__":
+    args = ParseArgs()
     try:
-        if len(sys.argv) > 1:
-            s = Server()
+        if args.server:
+            s = Server(args)
         else:
-            c = Client(config)
+            c = Client(args)
 
     except KeyboardInterrupt:
         print("Quiting")
