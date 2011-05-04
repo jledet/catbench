@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 
 import sys
+import argparse
 import time
 import datetime
 import subprocess
@@ -21,15 +22,20 @@ speed_min  = 100
 speed_max  = 500
 speed_step = 50
 
-# Output file
-fname = "test.csv"
+nw = datetime.datetime.now().isoformat(" ")
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("-f", dest="fname", default="test.csv")
+parser.add_argument("-t", dest="title", default=nw)
+args = parser.parse_args()
 
 try:
-    f = open(fname, "w")
+    f = open(args.fname, "w")
     f.write("# CATWOMAN bench\n")
-    f.write("# Test started {}\n".format(datetime.datetime.now().isoformat(" ")))
+    f.write("# Test started {}\n".format(nw))
+    f.write("# Title: {}\n".format(args.title))
 except:
-    print("Failed to open {}".format(fname))
+    print("Failed to open {}".format(args.fname))
 
 print("Testing from {} to {} kb/s with {} kb/s steps".format(speed_min, speed_max, speed_step))
 start = time.time()
