@@ -28,7 +28,28 @@ def connect(node):
     sock.connect((host, port))
     return sock
 
-def args():
+def write_cmd(sock, path, val=''):
+    cmd = {}
+    cmd['action'] = 'write'
+    cmd['path'] = path
+    cmd['value'] = val
+    send_obj(sock, cmd)
+    return recv_obj(sock)
+
+def read_cmd(sock, path):
+    cmd = {}
+    cmd['action'] = 'read'
+    cmd['path'] = path
+    send_obj(sock, cmd)
+    return recv_obj(sock)
+
+def close_cmd(sock):
+    cmd = {}
+    cmd['action'] = 'close'
+    send_obj(sock, cmd)
+    return recv_obj(sock)
+
+def get_args():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-n', dest='node', required=True)
     parser.add_argument('-s', dest='stats', action='store_true')
@@ -40,59 +61,24 @@ def args():
     parser.add_argument('-p', dest='purge')
     return parser.parse_args()
 
-cmd = {
-        'action': 'read',
-        'path': '',
-        'value': ''
-        }
 
+def parse_args(sock, args):
+    if args.stats:
+        return read_cmd(sock, stats_path)
+    elif args.clear:
+        return write_cmd(sock, clean_path)
+    elif args.enable:
+        return write_cmd(sock, catw_path, '1')
+    elif args.disable:
+        return write_cmd(sock, catw_path, '0')
+    elif args.hold:
+        return write_cmd(sock, hold_path, args.hold)
+    elif args.purge:
+        return write_cmd(sock, purge_path, args.purge)
+    elif args.quit:
+        return close_cmd(sock)
+
+args = get_args()
 sock = connect(args.node)
-
-if args.stats:
-    cmd['path'] = stats_path
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.clear:
-    cmd['action'] = 'write'
-    cmd['path'] = clean_path
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.enable:
-    cmd['action'] = 'write'
-    cmd['path'] = catw_path
-    cmd['value'] = '0'
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.disable:
-    cmd['action'] = 'write'
-    cmd['path'] = catw_path
-    cmd['value'] = '0'
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.hold:
-    cmd['action'] = 'write'
-    cmd['path'] = hold_path
-    cmd['value'] = args.hold
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.purge:
-    cmd['action'] = 'write'
-    cmd['path'] = purge_path
-    cmd['value'] = args.purge
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-elif args.quit:
-    cmd['action'] = 'close'
-    send_obj(sock, cmd)
-    val = recv_obj(sock)
-    print(val)
-
-
-
+print parse_args(args)
 sock.close()
