@@ -17,23 +17,21 @@ for filename in sys.argv[1:]:
         # Read in all measurements
         for line in f:
             if not line.startswith("#"):
-                speed, test, tx_speed, tx_delay, tx_lost, tx_total, tx_pl, rx_speed, rx_delay, rx_lost, rx_total, rx_pl = line.split(",")
+                test, speed, tx_speed, tx_delay, tx_lost, tx_total, tx_pl, rx_speed, rx_delay, rx_lost, rx_total, rx_pl = line.split(",")
                 if not speed in meas.keys():
                     meas[speed] = []
                 meas[speed].append((test, tx_speed, tx_delay, tx_lost, tx_total, tx_pl, rx_speed, rx_delay, rx_lost, rx_total, rx_pl))
 
-        x = meas.keys()
         y = []
-        for i in x:
-            j = map(lambda k: int(k[1]), meas[i])
+        for i in meas.keys():
+            j = map(lambda k: float(k[1]), meas[i])
             y.append(sum(j)/len(j))
-
+        x = map(lambda l: int(l), meas.keys())
+        x,y = zip(*sorted(zip(x,y)))
         pylab.plot(x, y)
+
 pylab.title("Performance")
 pylab.xlabel("Transmit speed [kb/s]")
 pylab.ylabel("Receive speed [kb/s]")
 pylab.grid('on')
 pylab.show()
-print(x)
-print(y)
-print(meas)
