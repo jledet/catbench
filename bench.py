@@ -8,13 +8,13 @@ import re
 import math
 
 # Server host
-server = "localhost"
+server = "10.10.0.8"
 
 # Iterations per test
-tests = 1
+tests = 5
 
 # Length of each test in sec
-tlength = 10
+tlength = 60
 
 # kbps
 speed_min  = 100
