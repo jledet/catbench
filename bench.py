@@ -1,14 +1,17 @@
 #!/usr/bin/env python2
 
 import sys
+import time
+import datetime
 import subprocess
 import re
+import math
 
 # Server host
 server = "localhost"
 
 # Iterations per test
-tests = 2
+tests = 1
 
 # Length of each test in sec
 tlength = 10
@@ -19,17 +22,22 @@ speed_max  = 500
 speed_step = 50
 
 # Output file
+#fname = "test_{}.csv".format(math.floor(time.time()))
 fname = "test.csv"
 
 try:
     f = open(fname, "w")
+    f.write("# CATWOMAN bench\n")
+    f.write("# Test started {}\n".format(datetime.datetime.now().isoformat(" ")))
 except:
     print("Failed to open {}".format(fname))
 
+print("Testing from {} to {} kb/s with {} kb/s steps".format(speed_min, speed_max, speed_step))
+start = time.time()
 for speed in range(speed_min, speed_max+speed_step, speed_step):
-    print("###### SPEED {} kbps ######".format(speed))
+    print("############ {} kbps ############".format(speed))
     for test in range(0, tests):
-	print("-- Test {} --".format(test))
+	print("Test {}:".format(test))
 	try:
 	    output = subprocess.check_output(["iperf", "-c", server, "-u", "-d", "-b", "{}k".format(speed), "-t", str(tlength)])
 	except:
@@ -57,5 +65,10 @@ for speed in range(speed_min, speed_max+speed_step, speed_step):
 		rx_pl    = rx[12].replace("%", "").replace("(", "").replace(")", "")
 
 		res = [str(test), str(speed), tx_speed, tx_delay, tx_lost, tx_total, tx_pl, rx_speed, rx_delay, rx_lost, rx_total, rx_pl]
-		print(",".join(res))
+		print(" TX: {} kb/s | {} ms | {}/{} ({}%)".format(tx_speed, tx_delay, tx_lost, tx_total, tx_pl))
+		print(" RX: {} kb/s | {} ms | {}/{} ({}%)".format(rx_speed, rx_delay, rx_lost, rx_total, rx_pl))
 		f.write(",".join(res)+"\n")
+
+end = time.time()
+print("Test finished in {} seconds".format(math.floor(end-start)))
+f.close()
