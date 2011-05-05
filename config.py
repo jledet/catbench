@@ -2,6 +2,8 @@ import subprocess
 import os
 import threading
 import time
+import sys
+import re
 
 slaves = []
 nodes = []
@@ -25,8 +27,9 @@ class Slave(threading.Thread):
         self.finish = threading.Event()
         self.daemon = True
     
-    def set_ip(self, ip):
+    def set_ip(self, ip, bat_ip):
         self.ip = ip
+        self.bat_ip = bat_ip
 
     def set_node(self, node):
         self.node = node
@@ -43,7 +46,7 @@ class Slave(threading.Thread):
 
     def start_iperf(self):
         self.stop_iperf()
-        self.run_command("iperf -s -u -D &> /dev/null")
+        self.run_command("iperf -s -u &> /dev/null &")
 
     def stop_tunnel(self):
         os.system("ps aux | grep ssh | grep {} | awk '{{print $2}}' | xargs kill".format(self.ip))
@@ -62,12 +65,16 @@ class Slave(threading.Thread):
         while not self.stopped:
             # Wait for start signal
             self.signal.wait()
-            print("{} woken with {}/{}".format(self.name, self.speed, self.duration))
+
+            # Sleep because iperf sucks
+            time.sleep(3)
 
             try:
-                output = self.run_command("iperf -c {} -u -fk -b{}k -t{}".format(self.flow, self.speed, self.duration))
-            except:
-                print("Test failed for {}!".format(self.name))
+                cmd = "iperf -c {} -u -fk -b{}k".format(self.flow.bat_ip, self.speed)
+                #print(cmd)
+                output = self.run_command(cmd)
+            except Exception as e:
+                print("Test failed for {}! ({})".format(self.name, e))
                 sys.exit(-1)
             else:
                 lines = filter(lambda x: re.search("\(.+%\)$", x), output.split("\n"))
@@ -75,6 +82,7 @@ class Slave(threading.Thread):
                     print("Incorrect output format")
                     sys.exit(-1)
                 else:
+                    #print(output)
                     tx = lines[0].split()
                     speed = tx[6]
                     delay = tx[8]
@@ -82,7 +90,7 @@ class Slave(threading.Thread):
                     total = tx[11]
                     pl    = tx[12].replace("%", "").replace("(", "").replace(")", "")
 
-                    self.res = {"speed": speed, "delay": delay, "lost": lost, "total": total, "pl": pl}
+                    self.res = {"slave": self.name, "speed": speed, "delay": delay, "lost": lost, "total": total, "pl": pl}
                     self.finish.set()
 
 
@@ -107,6 +115,11 @@ def start_slaves():
         slave.start_iperf()
         slave.start_tunnel()
 
+def stop_slaves():
+    for slave in slaves:
+        slave.stop_iperf()
+        slave.stop_tunnel()
+
 def prepare_slaves(signal):
     for slave in slaves:
         if slave.flow:
@@ -126,4 +139,8 @@ def configure_slaves(speed, duration):
             slave.duration = duration
 
 def result_slaves():
-    return [slave.res for slave in slaves]
+    l = []
+    for slave in slaves:
+        if slave.flow:
+            l.append(slave.res)
+    return l
