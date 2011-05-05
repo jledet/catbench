@@ -30,6 +30,8 @@ class Stats:
         try:
             while True:
                 stats = self.read_meas()
+                cpu = self.read_cpu()
+                print cpu
                 stats = self.parse_meas(stats)
                 self.write_meas(stats)
 
@@ -43,6 +45,12 @@ class Stats:
         stats = cmd.read_cmd(sock, cmd.stats_path)
         sock.close()
         return stats
+
+    def read_cpu(self):
+        sock = cmd.connect(self.args.node)
+        cpu = cmd.read_cmd(sock, cmd.cpu_path)
+        sock.close()
+        return cpu.split("\n")[0]
 
     def parse_meas(self, meas):
         out = [[], []]
