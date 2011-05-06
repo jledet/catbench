@@ -3,59 +3,84 @@
 import argparse
 import time
 import cmd
+import threading
 
-class Stats:
-    def __init__(self):
-        self.args = self.get_args()
-        self.prepare_file()
-        self.run()
+stats = []
+stat_file = None
 
-    def get_args(self):
-        parser = argparse.ArgumentParser(add_help=False)
-        parser.add_argument('-n', dest='node', required=True)
-        parser.add_argument('-f', dest='path', default='stats.csv')
-        parser.add_argument('-i', dest='interval', default=1)
-        return parser.parse_args()
+class Stats(threading.Thread):
+    def __init__(self, node, interval, gun):
+        super(Stats, self).__init__(None)
+        self.host = "{}:{}".format(node.forward_ip, node.port)
+        self.name = node.name
+        self.interval = interval
+        self.gun = gun
 
-    def prepare_file(self):
-        stats = self.read_meas()
-        stats = self.parse_meas(stats)
+        self.speed = None
+        self.test = None
+        self.stats = ""
+        self.total_cpu = None
+        self.total_idle = None
 
-        line = "#" + ",".join(stats[0]) + "\n"
-        self.f = open(self.args.path, 'w')
-        self.f.write(line)
-        self.f.close()
+        self.stop = False
+        self.daemon = True
+        self.start()
+
+    def quit(self):
+        self.stop = True
+        if not self.gun.is_set():
+            self.gun.set()
 
     def run(self):
         try:
             while True:
-                stats = self.read_meas()
-                cpu = self.read_cpu()
-                print cpu
-                stats = self.parse_meas(stats)
-                self.write_meas(stats)
+                self.gun.wait()
+                if self.stop:
+                    break
 
-                time.sleep(self.args.interval)
+                cpu = self.read_cpu()
+                if cpu:
+                    stats = self.read_meas()
+                    stats = self.parse_meas(stats, cpu)
+                    self.append_stats(stats)
+
+                time.sleep(self.interval)
 
         except KeyboardInterrupt:
             return
 
+    def clear_stats(self):
+        sock = cmd.connect(self.host)
+        stats = cmd.read_cmd(sock, cmd.clear_path)
+        sock.close()
+
     def read_meas(self):
-        sock = cmd.connect(self.args.node)
+        sock = cmd.connect(self.host)
         stats = cmd.read_cmd(sock, cmd.stats_path)
         sock.close()
         return stats
 
     def read_cpu(self):
-        sock = cmd.connect(self.args.node)
+        last_cpu = self.total_cpu
+        last_idle = self.total_idle
+
+        sock = cmd.connect(self.host)
         cpu = cmd.read_cmd(sock, cmd.cpu_path)
         sock.close()
-        return cpu.split("\n")[0]
+        line = cpu.split("\n")[0]
+        self.total_cpu = sum(map(lambda x: float(x), line.split()[1:]))
+        self.total_idle = float(line.split()[4])
+        if not last_cpu:
+            return None
+        else:
+            total = self.total_cpu - last_cpu
+            idle = self.total_idle - last_idle
+            return int(100*(total - idle)/total)
 
-    def parse_meas(self, meas):
+    def parse_meas(self, meas, cpu):
         out = [[], []]
-        out[0].append('Timestamp')
-        out[1].append(str(int(time.time())))
+        out[0].extend(['Timestamp', 'Node', 'Speed', 'Test'])
+        out[1].extend([str(int(time.time())), self.name, self.speed, self.test])
 
         for line in meas.split('\n'):
             if ':' not in line:
@@ -64,13 +89,48 @@ class Stats:
             out[0].append(stat)
             out[1].append(str(int(val)))
 
+        out[0].append("CPU")
+        out[1].append(str(cpu))
+
         return out
 
-    def write_meas(self, meas):
+    def append_stats(self, meas):
         line = ",".join(meas[1]) + "\n"
-        self.f = open(self.args.path, 'a')
-        self.f.write(line)
-        self.f.close()
+        self.stats += line
+
+def create(nodes, interval, gun, filename):
+    global stat_file
+    stat_file = open(filename, 'w')
+    for node in nodes:
+        stat = Stats(node, interval, gun)
+        stats.append(stat)
+
+    prepare_file()
+
+def prepare_file():
+    global stat_file
+    stat = stats[0]
+    meas = stat.read_meas()
+    cpu = stat.read_cpu()
+    meas = stat.parse_meas(meas, cpu)
+    line = "#" + ",".join(meas[0]) + "\n"
+    stat_file.write(line)
+    stat_file.flush()
+
+def configure(speed, test):
+    for stat in stats:
+        stat.clear_stats()
+        stat.speed = str(speed)
+        stat.test = str(test)
+        stat.total_cpu = None
+        stat.total_idle = None
+
+def write():
+    global stat_file
+    for stat in stats:
+        stat_file.write(stat.stats)
+        stat_file.flush()
+        stat.stats = ""
 
 if __name__ == "__main__":
     s = Stats()

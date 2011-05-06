@@ -5,7 +5,7 @@ import socket
 import argparse
 
 stats_path = '/sys/kernel/debug/batman_adv/bat0/coding_stats'
-clean_path = '/sys/kernel/debug/batman_adv/bat0/coding_stats_clear'
+clear_path = '/sys/kernel/debug/batman_adv/bat0/coding_stats_clear'
 catw_path = '/sys/devices/virtual/net/bat0/mesh/catwoman'
 hold_path = '/sys/devices/virtual/net/bat0/mesh/catwoman_hold'
 purge_path = '/sys/devices/virtual/net/bat0/mesh/catwoman_purge'
@@ -71,7 +71,7 @@ def parse_args(sock, args):
     if args.stats:
         return read_cmd(sock, stats_path)
     elif args.clear:
-        return read_cmd(sock, clean_path)
+        return read_cmd(sock, clear_path)
     elif args.enable:
         return write_cmd(sock, catw_path, '1')
     elif args.disable:

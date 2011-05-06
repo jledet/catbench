@@ -160,7 +160,6 @@ def result_slaves():
 def start_nodes(coding):
     c = "1" if coding == "enabled" else "0"
     for node in nodes:
-            host = "{}:{}".format(node.forward_ip, node.port)
-            s = cmd.connect(host)
-            cmd.write_cmd(s, cmd.catw_path, c)
-
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        cmd.write_cmd(s, cmd.catw_path, c)

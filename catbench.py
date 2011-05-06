@@ -12,6 +12,7 @@ import socket
 import pickle
 import atexit
 import cmd
+import stats
 
 nw = datetime.datetime.now().isoformat(" ")
 
@@ -26,6 +27,7 @@ def main():
     parser.add_argument("--max", type=int, dest="speed_max", default=500)
     parser.add_argument("--step", type=int, dest="speed_step", default=50)
     parser.add_argument("--coding", dest="coding", default="enabled")
+    parser.add_argument("--interval", type=int, dest="interval", default=1)
     args = parser.parse_args()
 
     if args.config == "ab":
@@ -36,10 +38,17 @@ def main():
         sys.exit(-1)
 
     # Configure slaves and nodes
+    print("Starting slaves")
     signal = threading.Event()
     setup.start_slaves()
+    print("Starting nodes")
     setup.start_nodes(args.coding)
     setup.prepare_slaves(signal)
+
+    print("Starting stats")
+    stat_signal = threading.Event()
+    stat_file = "stats_{}".format(args.outfile)
+    stats.create(setup.nodes, args.interval, stat_signal, stat_file)
 
     try:
         f = open(args.outfile, "w")
@@ -60,9 +69,21 @@ def main():
         setup.configure_slaves(speed, args.duration)
 
         for test in range(args.tests):
+            # Record stats from each node
+            stats.configure(speed, test)
+            stat_signal.set()
+
+            # Start iperf on all slaves
             signal.set()
             signal.clear()
+
+            # Wait for iperf to finish
             ret = setup.wait_slaves()
+
+            # Stop recording stats
+            stat_signal.clear()
+            stats.write()
+
             if not ret:
                 print("Slave failed")
                 return
@@ -74,6 +95,7 @@ def main():
                 r["test_speed"] = speed
                 print("{speed} kb/s | {delay} ms | {lost}/{total} ({pl}%)".format(**r))
                 f.write("{slave},{test_speed},{test},{speed},{delay},{lost},{total},{pl}\n".format(**r))
+                f.flush()
 
             print
             # Restart iperf server to avoid time skew
