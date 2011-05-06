@@ -25,6 +25,7 @@ class Slave(threading.Thread):
         self.flow = None
         slaves.append(self)
         self.stopped = False
+        self.error = False
         self.finish = threading.Event()
         self.daemon = True
     
@@ -69,18 +70,22 @@ class Slave(threading.Thread):
 
             try:
                 cmd = "iperf -c {} -u -fk -b{}k -t{}".format(self.flow.bat_ip, self.speed, self.duration)
-                print(cmd)
                 output = self.run_command(cmd)
             except Exception as e:
                 print("Test failed for {}! ({})".format(self.name, e))
                 sys.exit(-1)
             else:
+                if "WARNING" in output:
+                    print(output)
+                    self.error = True
+                    self.finish.set()
+                    break
+
                 lines = filter(lambda x: re.search("\(.+%\)$", x), output.split("\n"))
                 if not len(lines) == 1:
                     print("Incorrect output format")
                     sys.exit(-1)
                 else:
-                    print(output)
                     tx = lines[0].split()
                     speed = tx[6]
                     delay = tx[8]
@@ -118,6 +123,10 @@ def stop_slaves():
         slave.stop_iperf()
         slave.stop_tunnel()
 
+def restart_iperf_slaves():
+    for slave in slaves:
+        slave.start_iperf()
+
 def prepare_slaves(signal):
     for slave in slaves:
         if slave.flow:
@@ -125,10 +134,15 @@ def prepare_slaves(signal):
             slave.start()
 
 def wait_slaves():
+    ret = True
     for slave in slaves:
         if slave.flow:
             slave.finish.wait()
             slave.finish.clear()
+
+            if slave.error:
+                ret = False
+    return ret
 
 def configure_slaves(speed, duration):
     for slave in slaves:

@@ -19,7 +19,7 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--output", dest="outfile", default="test.csv")
     parser.add_argument("--title", dest="title", default=nw)
-    parser.add_argument("--config", dest="config", default="alice")
+    parser.add_argument("--config", dest="config", default="ab")
     parser.add_argument("--tests", type=int, dest="tests", default=1)
     parser.add_argument("--duration", type=int, dest="duration", default=60)
     parser.add_argument("--min", type=int, dest="speed_min", default=100)
@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--coding", dest="coding", default="enabled")
     args = parser.parse_args()
 
-    if args.config == "alice":
+    if args.config == "ab":
         import ab as setup
         atexit.register(setup.stop_slaves)
     else:
@@ -58,23 +58,26 @@ def main():
         print("############ {} kbps ############".format(speed))
         # Start tests
         setup.configure_slaves(speed, args.duration)
-        
+
         for test in range(args.tests):
             signal.set()
             signal.clear()
-            setup.wait_slaves()
+            ret = setup.wait_slaves()
+            if not ret:
+                print("Slave failed")
+                return
 
             res = setup.result_slaves()
-            
+
             for r in res:
                 r["test"] = test
                 r["test_speed"] = speed
                 print("{speed} kb/s | {delay} ms | {lost}/{total} ({pl}%)".format(**r))
                 f.write("{slave},{test_speed},{test},{speed},{delay},{lost},{total},{pl}\n".format(**r))
 
-            # Sleep because iperf sucks
             print
-            time.sleep(10)
+            # Restart iperf server to avoid time skew
+            setup.restart_iperf_slaves()
 
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))
