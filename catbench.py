@@ -11,6 +11,7 @@ import threading
 import socket
 import pickle
 import atexit
+import cmd
 
 nw = datetime.datetime.now().isoformat(" ")
 
@@ -24,6 +25,7 @@ def main():
     parser.add_argument("--min", type=int, dest="speed_min", default=100)
     parser.add_argument("--max", type=int, dest="speed_max", default=500)
     parser.add_argument("--step", type=int, dest="speed_step", default=50)
+    parser.add_argument("--coding", dest="coding", default="enabled")
     args = parser.parse_args()
 
     if args.config == "alice":
@@ -36,7 +38,7 @@ def main():
     # Configure slaves and nodes
     signal = threading.Event()
     setup.start_slaves()
-    #setup.start_nodes()
+    setup.start_nodes(args.coding)
     setup.prepare_slaves(signal)
 
     try:
@@ -48,6 +50,7 @@ def main():
         print("Failed to open {}".format(args.outfile))
 
     print("Testing from {} to {} kb/s in {} kb/s steps".format(args.speed_min, args.speed_max, args.speed_step))
+    print("{} tests per speed, duration is {} s, coding is {}".format(args.tests, args.duration, args.coding))
     start = time.time()
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
     for i in range(len(speeds)):
@@ -65,8 +68,13 @@ def main():
             
             for r in res:
                 r["test"] = test
+                r["test_speed"] = speed
                 print("{speed} kb/s | {delay} ms | {lost}/{total} ({pl}%)".format(**r))
-                f.write("{slave},{test},{speed},{delay},{lost},{total},{pl}\n".format(**r))
+                f.write("{slave},{test_speed},{test},{speed},{delay},{lost},{total},{pl}\n".format(**r))
+
+            # Sleep because iperf sucks
+            print
+            time.sleep(10)
 
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))

@@ -4,6 +4,7 @@ import threading
 import time
 import sys
 import re
+import cmd
 
 slaves = []
 nodes = []
@@ -66,12 +67,9 @@ class Slave(threading.Thread):
             # Wait for start signal
             self.signal.wait()
 
-            # Sleep because iperf sucks
-            time.sleep(3)
-
             try:
-                cmd = "iperf -c {} -u -fk -b{}k".format(self.flow.bat_ip, self.speed)
-                #print(cmd)
+                cmd = "iperf -c {} -u -fk -b{}k -t{}".format(self.flow.bat_ip, self.speed, self.duration)
+                print(cmd)
                 output = self.run_command(cmd)
             except Exception as e:
                 print("Test failed for {}! ({})".format(self.name, e))
@@ -82,7 +80,7 @@ class Slave(threading.Thread):
                     print("Incorrect output format")
                     sys.exit(-1)
                 else:
-                    #print(output)
+                    print(output)
                     tx = lines[0].split()
                     speed = tx[6]
                     delay = tx[8]
@@ -144,3 +142,11 @@ def result_slaves():
         if slave.flow:
             l.append(slave.res)
     return l
+
+def start_nodes(coding):
+    c = "1" if coding == "enabled" else "0"
+    for node in nodes:
+            host = "{}:{}".format(node.forward_ip, node.port)
+            s = cmd.connect(host)
+            cmd.write_cmd(s, cmd.catw_path, c)
+

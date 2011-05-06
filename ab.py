@@ -16,7 +16,7 @@ bob.set_node(node_bob)
 
 # Create relay node
 node_relay = Node("relay")
-node_relay.set_ip("10.10.0.101")
+node_relay.set_ip("cwn1.personal.es.aau.dk")
 
 # Connect flows
 alice.set_flow(bob)
