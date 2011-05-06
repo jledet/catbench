@@ -89,8 +89,8 @@ class Stats(threading.Thread):
             out[0].append(stat)
             out[1].append(str(int(val)))
 
-        out[0].append("CPU")
-        out[1].append(str(cpu))
+        out[0].extend(["CPU", "Last"])
+        out[1].extend([str(cpu), "0"])
 
         return out
 
@@ -128,7 +128,8 @@ def configure(speed, test):
 def write():
     global stat_file
     for stat in stats:
-        stat_file.write(stat.stats)
+        string = stat.stats[:-2] + "1\n"
+        stat_file.write(string)
         stat_file.flush()
         stat.stats = ""
 

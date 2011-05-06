@@ -69,7 +69,7 @@ def main():
         speed = speeds[i]
         print("############ {} kbps ############".format(speed))
         # Start tests
-        setup.configure_slaves(speed, args.duration)
+        setup.configure_slaves(speed, args.duration, args.interval)
 
         for test in range(args.tests):
             # Record stats from each node

@@ -69,7 +69,7 @@ class Slave(threading.Thread):
             self.signal.wait()
 
             try:
-                cmd = "iperf -c {} -u -fk -b{}k -t{}".format(self.flow.bat_ip, self.speed, self.duration)
+                cmd = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, self.speed, self.duration, self.interval)
                 output = self.run_command(cmd)
             except Exception as e:
                 print("Test failed for {}! ({})".format(self.name, e))
@@ -80,6 +80,9 @@ class Slave(threading.Thread):
                     self.error = True
                     self.finish.set()
                     break
+
+                speeds = re.findall("([0-9]+) Kbits/sec\n", output)
+                speeds.pop()
 
                 lines = filter(lambda x: re.search("\(.+%\)$", x), output.split("\n"))
                 if not len(lines) == 1:
@@ -144,9 +147,10 @@ def wait_slaves():
                 ret = False
     return ret
 
-def configure_slaves(speed, duration):
+def configure_slaves(speed, duration, interval):
     for slave in slaves:
         if slave.flow:
+            slave.interval = interval
             slave.speed = speed
             slave.duration = duration
 
