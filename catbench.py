@@ -58,8 +58,11 @@ def main():
     except:
         print("Failed to open {}".format(args.outfile))
 
+    print
     print("Testing from {} to {} kb/s in {} kb/s steps".format(args.speed_min, args.speed_max, args.speed_step))
     print("{} tests per speed, duration is {} s, coding is {}".format(args.tests, args.duration, args.coding))
+    print
+
     start = time.time()
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
     for i in range(len(speeds)):
@@ -103,6 +106,8 @@ def main():
 
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))
+    print
+    print
     f.close()
 
 if __name__ == "__main__":
