@@ -1,4 +1,4 @@
-from config import *
+from slave import *
 
 # Create Alice
 alice = Slave("alice")

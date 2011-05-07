@@ -9,6 +9,7 @@ clear_path = '/sys/kernel/debug/batman_adv/bat0/coding_stats_clear'
 catw_path = '/sys/devices/virtual/net/bat0/mesh/catwoman'
 hold_path = '/sys/devices/virtual/net/bat0/mesh/catwoman_hold'
 purge_path = '/sys/devices/virtual/net/bat0/mesh/catwoman_purge'
+orig_path = '/sys/kernel/debug/batman_adv/bat0/originators'
 cpu_path = '/proc/stat'
 test_path = '/tmp/cmd_test'
 
@@ -62,6 +63,7 @@ def get_args():
     parser.add_argument('-d', dest='disable', action='store_true')
     parser.add_argument('-q', dest='quit', action='store_true')
     parser.add_argument('-u', dest='cpu', action='store_true')
+    parser.add_argument('-o', dest='orig', action='store_true')
     parser.add_argument('-t', dest='test', action='store_true')
     parser.add_argument('-h', dest='hold')
     parser.add_argument('-p', dest='purge')
@@ -80,6 +82,8 @@ def parse_args(sock, args):
         return write_cmd(sock, hold_path, args.hold)
     elif args.purge:
         return write_cmd(sock, purge_path, args.purge)
+    elif args.orig:
+        return read_cmd(sock, orig_path)
     elif args.cpu:
         return read_cmd(sock, cpu_path)
     elif args.quit:

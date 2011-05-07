@@ -6,22 +6,24 @@ import cmd
 import threading
 
 stats = []
+signal = threading.Event()
 stat_file = None
 
 class Stats(threading.Thread):
-    def __init__(self, node, interval, gun):
+    def __init__(self, node, interval, gun=None):
         super(Stats, self).__init__(None)
         self.host = "{}:{}".format(node.forward_ip, node.port)
         self.name = node.name
         self.interval = interval
         self.gun = gun
 
-        self.speed = None
-        self.test = None
+        self.speed = "0"
+        self.test = "0"
         self.stats = ""
         self.total_cpu = None
         self.total_idle = None
 
+        self.view = False
         self.stop = False
         self.daemon = True
         self.start()
@@ -34,7 +36,8 @@ class Stats(threading.Thread):
     def run(self):
         try:
             while True:
-                self.gun.wait()
+                if self.gun:
+                    self.gun.wait()
                 if self.stop:
                     break
 
@@ -95,14 +98,24 @@ class Stats(threading.Thread):
         return out
 
     def append_stats(self, meas):
-        line = ",".join(meas[1]) + "\n"
-        self.stats += line
+        if self.view:
+            self.print_stats(meas)
+        else:
+            line = ",".join(meas[1]) + "\n"
+            self.stats += line
 
-def create(nodes, interval, gun, filename):
+    def print_stats(self, meas):
+        i = 4
+        for stat in meas[0][i:15]:
+            print("{}: {}".format(stat, meas[1][i]))
+            i += 1
+        print
+
+def create(nodes, interval, filename):
     global stat_file
     stat_file = open(filename, 'w')
     for node in nodes:
-        stat = Stats(node, interval, gun)
+        stat = Stats(node, interval, signal)
         stats.append(stat)
 
     prepare_file()
@@ -125,6 +138,13 @@ def configure(speed, test):
         stat.total_cpu = None
         stat.total_idle = None
 
+def start():
+    signal.set()
+
+def stop():
+    signal.clear()
+    write()
+
 def write():
     global stat_file
     for stat in stats:
@@ -133,5 +153,25 @@ def write():
         stat_file.flush()
         stat.stats = ""
 
+def get_args():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('-n', dest='node', required=True)
+    parser.add_argument('-f', dest='path', default='stats.csv')
+    parser.add_argument('-i', dest='interval', default=1)
+    parser.add_argument('-p', dest='port', default=8899)
+    return parser.parse_args()
+
 if __name__ == "__main__":
-    s = Stats()
+    args = get_args()
+    import config
+    node = config.Node(args.node)
+    node.ip = args.node
+    node.forward_ip = args.node
+    node.port = args.port
+
+    try:
+        s = Stats(node, args.interval)
+        s.view = True
+        s.join()
+    except KeyboardInterrupt:
+        pass

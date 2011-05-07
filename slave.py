@@ -8,6 +8,7 @@ import cmd
 
 slaves = []
 nodes = []
+signal = threading.Event()
 
 next_port = 59000
 
@@ -51,7 +52,7 @@ class Slave(threading.Thread):
         self.run_command("iperf -s -u &> /dev/null &")
 
     def stop_tunnel(self):
-        os.system("ps aux | grep ssh | grep {} | awk '{{print $2}}' | xargs kill".format(self.ip))
+        os.system("ps aux | grep ssh | grep catwoman@{} | awk '{{print $2}}' | xargs kill".format(self.ip))
 
     def start_tunnel(self):
         self.stop_tunnel()
@@ -66,39 +67,30 @@ class Slave(threading.Thread):
     def run(self):
         while not self.stopped:
             # Wait for start signal
-            self.signal.wait()
+            signal.wait()
 
             try:
                 cmd = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, self.speed, self.duration, self.interval)
                 output = self.run_command(cmd)
+
+                r       = re.findall("(\d*\.?\d*) *Kbits/sec *(\d+\.\d+)+ ms *(\d+)/ *(\d+) *\((\d*\.?\d+)\%\)", output)[0]
+                speeds  = re.findall("([0-9]+) Kbits/sec\n", output)[0]
+
+                self.res = {
+                        "slave": self.name,
+                        "throughput": float(r[0]),
+                        "jitter": float(r[1]),
+                        "lost": int(r[2]),
+                        "total": int(r[3]),
+                        "pl": float(r[4])
+                        }
+                print("{slave:10s}: {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(**self.res))
+                self.finish.set()
             except Exception as e:
+                print(output)
                 print("Test failed for {}! ({})".format(self.name, e))
-                sys.exit(-1)
-            else:
-                if "WARNING" in output:
-                    print(output)
-                    self.error = True
-                    self.finish.set()
-                    break
-
-                speeds = re.findall("([0-9]+) Kbits/sec\n", output)
-                speeds.pop()
-
-                lines = filter(lambda x: re.search("\(.+%\)$", x), output.split("\n"))
-                if not len(lines) == 1:
-                    print("Incorrect output format")
-                    sys.exit(-1)
-                else:
-                    tx = lines[0].split()
-                    speed = tx[6]
-                    delay = tx[8]
-                    lost  = tx[10].replace("/", "")
-                    total = tx[11]
-                    pl    = tx[12].replace("%", "").replace("(", "").replace(")", "")
-
-                    self.res = {"slave": self.name, "speed": speed, "delay": delay, "lost": lost, "total": total, "pl": pl}
-                    self.finish.set()
-
+                self.error = True
+                self.finish.set()
 
 class Node():
     def __init__(self, name):
@@ -130,11 +122,16 @@ def restart_iperf_slaves():
     for slave in slaves:
         slave.start_iperf()
 
-def prepare_slaves(signal):
+def prepare_slaves():
     for slave in slaves:
         if slave.flow:
-            slave.signal = signal
             slave.start()
+
+def signal_slaves():
+    for slave in slaves:
+        slave.error = False
+    signal.set()
+    signal.clear()
 
 def wait_slaves():
     ret = True
@@ -161,8 +158,8 @@ def result_slaves():
             l.append(slave.res)
     return l
 
-def start_nodes(coding):
-    c = "1" if coding == "enabled" else "0"
+def set_coding_nodes(coding=True):
+    c = "1" if coding else "0"
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
