@@ -21,12 +21,14 @@ class Slave(threading.Thread):
     def __init__(self, name):
         super(Slave, self).__init__(None)
         self.name = name
+        self.group = 'slaves'
         self.ip = None
         self.node = None
         self.flow = None
         slaves.append(self)
         self.stopped = False
         self.error = False
+        self.timestamp = None
         self.finish = threading.Event()
         self.daemon = True
     
@@ -77,17 +79,20 @@ class Slave(threading.Thread):
                 speeds  = re.findall("([0-9]+) Kbits/sec\n", output)[0]
 
                 self.res = {
-                        "slave": self.name,
+                        "slave": self,
+                        "name": self.name,
+                        "test": self.test,
                         "throughput": float(r[0]),
                         "jitter": float(r[1]),
                         "lost": int(r[2]),
                         "total": int(r[3]),
                         "pl": float(r[4])
                         }
-                print("{slave:10s}: {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(**self.res))
+                print("{name:10s}: {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(**self.res))
+                self.res.pop("name")
+                self.timestamp = time.time()
                 self.finish.set()
             except Exception as e:
-                print(output)
                 print("Test failed for {}! ({})".format(self.name, e))
                 self.error = True
                 self.finish.set()
@@ -95,6 +100,7 @@ class Slave(threading.Thread):
 class Node():
     def __init__(self, name):
         self.name = name
+        self.group = 'nodes'
         self.ip = None
         self.forward_ip = None
         self.port = 9988
@@ -127,11 +133,20 @@ def prepare_slaves():
         if slave.flow:
             slave.start()
 
-def signal_slaves():
+def signal_slaves(test):
     for slave in slaves:
+        slave.test = test
         slave.error = False
     signal.set()
     signal.clear()
+
+def check_slave_times():
+    max_diff = 2
+    last = slaves[0]
+    for slave in slaves:
+        if slave.flow and abs(last.timestamp - slave.timestamp) > max_diff:
+            return False
+    return True
 
 def wait_slaves():
     ret = True

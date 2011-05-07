@@ -23,8 +23,8 @@ def main():
     parser.add_argument("--config", dest="config", default="ab")
     parser.add_argument("--tests", type=int, dest="tests", default=1)
     parser.add_argument("--duration", type=int, dest="duration", default=60)
-    parser.add_argument("--min", type=int, dest="speed_min", default=100)
-    parser.add_argument("--max", type=int, dest="speed_max", default=500)
+    parser.add_argument("--min", type=int, dest="speed_min", default=200)
+    parser.add_argument("--max", type=int, dest="speed_max", default=750)
     parser.add_argument("--step", type=int, dest="speed_step", default=50)
     parser.add_argument("--interval", type=int, dest="interval", default=1)
     parser.add_argument("--sleep", type=int, dest="sleep", default=10)
@@ -53,51 +53,62 @@ def main():
 
     start = time.time()
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
-    overhead = 10
+    overhead = 20
     test_time = (args.duration + args.sleep + overhead)
     eta = test_time * args.tests * len(speeds) * 2
-    output = prepare_output(setup.slaves, speeds)
+    output = prepare_output(setup.slaves, setup.nodes, speeds)
     for i in range(len(speeds)):
         speed = speeds[i]
         # Start testing
         setup.configure_slaves(speed, args.duration, args.interval)
 
         for test in range(args.tests):
-            stats.configure(speed, test)
-
             # Run test with network coding
             while not run_test(setup, stats, output, True, speed, test, eta, args.sleep):
                 pass
-
             eta -= test_time
 
             # Run test without network coding
             while not run_test(setup, stats, output, False, speed, test, eta, args.sleep):
                 pass
-
             eta -= test_time
-
-            # Restart iperf server to avoid time skew
-            setup.restart_iperf_slaves()
 
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))
     save_output(output, args.outfile)
 
-def prepare_output(slaves, speeds):
-    output = {'coding': {}, 'nocoding': {}}
+def prepare_output(slaves, nodes, speeds):
+    output = {
+            'coding': {
+                'slaves': {},
+                'nodes': {}
+                },
+            'nocoding': {
+                'slaves': {},
+                'nodes': {}
+                }
+            }
+
     for slave in slaves:
-        output['coding'][slave.name] = {}
-        output['nocoding'][slave.name] = {}
+        output['coding']['slaves'][slave.name] = {}
+        output['nocoding']['slaves'][slave.name] = {}
         for speed in speeds:
-            output['coding'][slave.name][speed] = []
-            output['nocoding'][slave.name][speed] = []
+            output['coding']['slaves'][slave.name][speed] = []
+            output['nocoding']['slaves'][slave.name][speed] = []
+
+    for node in nodes:
+        output['coding']['nodes'][node.name] = {}
+        output['nocoding']['nodes'][node.name] = {}
+        for speed in speeds:
+            output['coding']['nodes'][node.name][speed] = []
+            output['nocoding']['nodes'][node.name][speed] = []
+
 
     return output
 
 def append_output(output, coding, slave, speed, sample):
-    coding = 'coding' if coding else 'nocoding'
-    output[coding][slave][speed].append(sample)
+    c = 'coding' if coding else 'nocoding'
+    output[c][slave.group][slave.name][speed].append(sample)
 
 def save_output(output, filename):
     try:
@@ -116,10 +127,10 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     setup.set_coding_nodes(coding)
 
     # Record stats from each node
-    stats.start()
+    stats.start(test)
 
     # Start iperf on all slaves
-    setup.signal_slaves()
+    setup.signal_slaves(test)
 
     # Wait for iperf to finish
     ret = setup.wait_slaves()
@@ -130,15 +141,24 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     # Sleep to let batman-adv restore links
     time.sleep(sleep)
 
+    # Restart iperf server to avoid time skew
+    setup.restart_iperf_slaves()
+
     if not ret:
-        print("Slave failed")
         return False
 
-    res = setup.result_slaves()
+    if not setup.check_slave_times():
+        print("Slave time differs; restarting")
+        return False
 
+    res = stats.results()
+    for r in res:
+        node = r.pop(0)
+        append_output(output, coding, node, speed, r)
+
+    res = setup.result_slaves()
     for r in res:
         slave = r.pop('slave')
-        r["test"] = test
         append_output(output, coding, slave, speed, r)
 
     print
