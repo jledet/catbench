@@ -12,7 +12,7 @@ import pickle
 import atexit
 import cmd
 import stats
-import pickle
+import cPickle as pickle
 
 nw = datetime.datetime.now().isoformat(" ")
 
