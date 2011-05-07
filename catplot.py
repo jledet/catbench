@@ -67,14 +67,6 @@ big_fonts = {
     'figure.subplot.bottom': .13
 }
 
-#          'text.usetex': True}
-#          'axes.labelsize': 10,
-#          'text.fontsize': 10,
-#          'xtick.labelsize': 10,
-#          'ytick.labelsize': 10,
-#          'legend.pad': 10,    # empty space around the legend box
-#          'legend.fontsize': 10,
-
 def set_style(mode):
     if mode == 'paper':
         pylab.rcParams.update(paper)
@@ -84,29 +76,17 @@ def set_style(mode):
     elif mode == 'default':
         pylab.rcParams.setdefault
     else:
-        print "warning: no such setting, using default"
+        print "Warning: no such setting, using default"
         change('default')
 
-def main():
-    last_color_nc = 0
-    last_color_no_nc = 0
-    last_color_cg = 0
-    set_style('default')
-
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--with-nc", required=False, dest="with_nc", default=None)
-    parser.add_argument("--without-nc", required=False, dest="without_nc", default=None)
-    parser.add_argument("--nodes-with-nc", required=False, dest="nodes_with_nc", default=None)
-    parser.add_argument("--nodes-without-nc", required=False, dest="nodes_without_nc", default=None)
-    args = parser.parse_args()
-
-    for filename in (args.with_nc, args.without_nc):
+def plot_slaves(files):
+    for filename in (files):
         if not filename: continue
         meas = {}
         try:
             f = open(filename)
         except:
-            print("Failed to open {}".format(f))
+            print("Failed to open {}".format(filename))
             sys.exit(-1)
         else:
             # Read in all measurements
@@ -125,12 +105,9 @@ def main():
                     s  = m[2] # Read speed
                     if not ts in slave_speeds: slave_speeds[ts] = []
                     slave_speeds[ts].append(float(s))
-                #print(slave_speeds)
                 x[i] = map(lambda l: int(l), slave_speeds)
                 y[i] = map(lambda j: sum(slave_speeds[j])/len(slave_speeds[j]), slave_speeds)
                 x[i],y[i] = zip(*sorted(zip(x[i],y[i]))) # Sort x and y based on x
-                #print(x)
-                #print(y)
 
             if filename == args.with_nc:
                 y_nc = y
@@ -138,7 +115,6 @@ def main():
             elif filename == args.without_nc:
                 y_no_nc = y
                 x_no_nc = x
-
 
     legends = []
     coding_gain = {}
@@ -165,6 +141,22 @@ def main():
     pylab.legend(legends, loc='upper left', shadow=True)
     pylab.grid('on')
 
+
+
+def main():
+    last_color_nc = 0
+    last_color_no_nc = 0
+    last_color_cg = 0
+    set_style('default')
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--with-nc", required=False, dest="with_nc", default=None)
+    parser.add_argument("--without-nc", required=False, dest="without_nc", default=None)
+    parser.add_argument("--nodes-with-nc", required=False, dest="nodes_with_nc", default=None)
+    parser.add_argument("--nodes-without-nc", required=False, dest="nodes_without_nc", default=None)
+    args = parser.parse_args()
+
+
     # Plot coding/forward rate
     legends = []
     for filename in (args.nodes_with_nc, args.nodes_without_nc):
@@ -173,7 +165,7 @@ def main():
         try:
             f = open(filename)
         except:
-            print("Failed to open {}".format(f))
+            print("Failed to open {}".format(filename))
             sys.exit(-1)
         else:
             # Read in all measurements
