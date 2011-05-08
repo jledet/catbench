@@ -110,14 +110,22 @@ def plot_total_throughputs(throughputs, speeds):
 def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
 
+    # Normalize
+    print(len(forwarded))
+    print(len(coded))
+    total = numpy.add.reduce((forwarded, coded))
+    print(len(total))
+    forwarded_norm = numpy.true_divide(forwarded, total)
+    coded_norm = numpy.true_divide(coded, total)
+
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Transmit Speed [kb/s]")
     ax.set_ylabel("Packets")
     ax.set_title("Packets Forwarded/Coded")
     ax.grid('on')
-    ax.plot(speeds, forwarded, linewidth=2)
-    ax.plot(speeds, coded, linewidth=2)
+    ax.plot(speeds, forwarded_norm, linewidth=2)
+    ax.plot(speeds, coded_norm, linewidth=2)
     ax.legend(("Forwarded", "Coded"), loc='upper left', shadow=True)
 
 def main():
