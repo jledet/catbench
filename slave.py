@@ -23,7 +23,7 @@ class Slave(threading.Thread):
         self.name = name
         self.group = 'slaves'
         self.ip = None
-        self.node = None
+        self.node = Node(self.name)
         self.flow = None
         slaves.append(self)
         self.stopped = False
@@ -31,13 +31,13 @@ class Slave(threading.Thread):
         self.timestamp = None
         self.finish = threading.Event()
         self.daemon = True
-    
+
     def set_ip(self, ip, bat_ip):
         self.ip = ip
         self.bat_ip = bat_ip
 
-    def set_node(self, node):
-        self.node = node
+    def set_node_ip(self, ip):
+        self.node.set_ip(ip)
         self.node.set_local()
 
     def set_flow(self, flow):
@@ -80,7 +80,6 @@ class Slave(threading.Thread):
 
                 self.res = {
                         "slave": self,
-                        "name": self.name,
                         "test": self.test,
                         "throughput": float(r[0]),
                         "jitter": float(r[1]),
@@ -88,8 +87,7 @@ class Slave(threading.Thread):
                         "total": int(r[3]),
                         "pl": float(r[4])
                         }
-                print("{name:10s}: {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(**self.res))
-                self.res.pop("name")
+                print("{:10s} {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(self.name.title(), **self.res))
                 self.timestamp = time.time()
                 self.finish.set()
             except Exception as e:

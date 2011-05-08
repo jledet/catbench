@@ -37,25 +37,25 @@ def main():
         print("Invalid setup")
         sys.exit(-1)
 
+    speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
+    overhead = 8
+    test_time = (args.duration + args.sleep + overhead)
+    eta = test_time * args.tests * len(speeds) * 2
+
+    start = time.time()
+    iso_time = time.strftime("%H:%M:%S", time.localtime(start + eta))
+    print("Testing from {} to {} kb/s in {} kb/s steps".format(args.speed_min, args.speed_max, args.speed_step))
+    print("{} tests per speed, duration is {} s".format(args.tests, args.duration))
+    print("ETA: {}".format(iso_time))
+    print
+
     # Configure slaves and nodes
-    print("Starting slaves")
     setup.start_slaves()
     setup.prepare_slaves()
 
-    print("Starting stats")
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
 
-    print
-    print("Testing from {} to {} kb/s in {} kb/s steps".format(args.speed_min, args.speed_max, args.speed_step))
-    print("{} tests per speed, duration is {} s".format(args.tests, args.duration))
-    print
-
-    start = time.time()
-    speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
-    overhead = 20
-    test_time = (args.duration + args.sleep + overhead)
-    eta = test_time * args.tests * len(speeds) * 2
     output = prepare_output(setup.slaves, setup.nodes, speeds)
     for i in range(len(speeds)):
         speed = speeds[i]
