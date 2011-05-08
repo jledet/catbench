@@ -82,8 +82,8 @@ def plot_throughputs(samples, mx):
         coding_gain[slave] = map(operator.sub, throughput_agg['coding'][slave], throughput_agg['nocoding'][slave]) 
         plot_coding_gain(slave, speeds, coding_gain[slave])
    
-    theo_max = speeds if not mx else map(lambda num: num if int(num) < mx else mx, speeds)
-    #pylab.plot(speeds, theo_max, color="#000000", linestyle="--")
+    theo_max = speeds if mx == 0 else map(lambda num: num if int(num) < mx else mx, speeds)
+    pylab.plot(speeds, theo_max, color="#000000", linestyle="--")
 
     pylab.title("Throughput vs. Load")
     pylab.xlabel("Transmit speed [kb/s]")
@@ -94,7 +94,7 @@ def plot_throughputs(samples, mx):
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--data", dest="data", default=None)
-    parser.add_argument("--max", dest="max", default=None)
+    parser.add_argument("--max", dest="max", default=0)
     args = parser.parse_args()
 
     if not args.data:
