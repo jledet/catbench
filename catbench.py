@@ -57,6 +57,7 @@ def main():
     stats.create(setup.nodes, args.interval, stat_file)
 
     output = prepare_output(setup.slaves, setup.nodes, speeds)
+    atexit.register(save_output, output=output, filename=args.outfile)
     for i in range(len(speeds)):
         speed = speeds[i]
         # Start testing
@@ -75,7 +76,6 @@ def main():
 
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))
-    save_output(output, args.outfile)
 
 def prepare_output(slaves, nodes, speeds):
     output = {
@@ -113,12 +113,15 @@ def append_output(output, coding, slave, speed, sample):
 def save_output(output, filename):
     try:
         f = open(filename, 'wb')
+        fn = filename
     except:
         print("Failed to open output file, saving to /tmp/backup.pickle")
-        f = open("/tmp/backup.pickle" , 'wb')
+        fn = "/tmp/backup.pickle"
+        f = open(fn , 'wb')
 
     pickle.dump(output, f, pickle.HIGHEST_PROTOCOL)
     f.close()
+    print("Data saved to {}".format(fn))
 
 def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     verb = "with" if coding else "without"
@@ -138,9 +141,6 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     # Stop recording stats
     stats.stop()
 
-    # Sleep to let batman-adv restore links
-    time.sleep(sleep)
-
     # Restart iperf server to avoid time skew
     setup.restart_iperf_slaves()
 
@@ -149,6 +149,12 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
 
     if not setup.check_slave_times():
         print("Slave time differs; restarting")
+        return False
+
+    if not setup.check_node_paths(stats):
+        # Sleep to let batman-adv restore links
+        print("Direct path detected, sleeping {} seconds".format(sleep))
+        time.sleep(sleep)
         return False
 
     res = stats.results()
@@ -165,4 +171,7 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     return True
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

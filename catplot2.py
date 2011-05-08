@@ -146,7 +146,6 @@ def main():
         if not node in data['coding']['slaves']:
             plot_coding_forward(data, node)
 
-
     pylab.show()
 
 if __name__ == "__main__":
