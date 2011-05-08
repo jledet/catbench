@@ -38,8 +38,8 @@ def main():
         sys.exit(-1)
 
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
-    overhead = 8
-    test_time = (args.duration + args.sleep + overhead)
+    overhead = 10
+    test_time = (args.duration + overhead)
     eta = test_time * args.tests * len(speeds) * 2
 
     start = time.time()
@@ -159,8 +159,9 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
 
     res = stats.results()
     for r in res:
-        node = r.pop(0)
-        append_output(output, coding, node, speed, r)
+        node = r[0]
+        stat = r[1]
+        append_output(output, coding, node, speed, stat)
 
     res = setup.result_slaves()
     for r in res:

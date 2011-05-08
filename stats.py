@@ -138,6 +138,7 @@ def nexthops(node):
 
 def start(test):
     for stat in stats:
+        stat.clear_stats()
         stat.test = test
         stat.stats = []
         stat.total_cpu = None
@@ -162,6 +163,7 @@ if __name__ == "__main__":
     node.ip = args.node
     node.forward_ip = args.node
     node.port = args.port
+    node.group = 'nodes'
 
     try:
         s = Stats(node, args.interval)

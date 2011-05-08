@@ -143,7 +143,7 @@ def signal_slaves(test):
     signal.clear()
 
 def check_slave_times():
-    max_diff = 2
+    max_diff = 1
     last = slaves[0]
     for slave in slaves:
         if slave.flow and abs(last.timestamp - slave.timestamp) > max_diff:

@@ -111,10 +111,7 @@ def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
 
     # Normalize
-    print(len(forwarded))
-    print(len(coded))
-    total = numpy.add.reduce((forwarded, coded))
-    print(len(total))
+    total = numpy.add.reduce((forwarded, numpy.array(coded)*2))
     forwarded_norm = numpy.true_divide(forwarded, total)
     coded_norm = numpy.true_divide(coded, total)
 
