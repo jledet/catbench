@@ -58,16 +58,16 @@ def slaves_throughput(samples, coding, slave):
 def plot_throughput(samples, slave, coding):
     speeds, throughputs = slaves_throughput(samples, coding, slave)
     legends.append("{}{}".format(slave.title(), " with Network Coding" if coding == "coding" else ""))
-    pylab.plot(speeds, throughputs, linewidth=2)
+    #pylab.plot(speeds, throughputs, linewidth=2)
     return speeds, throughputs
 
 def plot_coding_gain(slave, speed, gain):
     legends.append("Coding Gain for {}".format(slave.title()))
     pylab.plot(speed, gain, linewidth=2)
 
-def plot_avg_throughputs(coding, throughputs, speeds):
+def plot_sum_throughputs(coding, throughputs, speeds):
     # Calculate and plot average throughput
-    pylab.figure()
+    #pylab.figure()
     avg = numpy.mean(throughputs, axis=0)
     pylab.plot(speeds, avg, linewidth=2)
 
@@ -105,7 +105,7 @@ def main():
         for slave in data[coding]['slaves']:
             speeds, throughputs = plot_throughput(data, slave, coding)
             throughput_agg.append(throughputs)
-        plot_avg_throughputs(coding, throughput_agg, speeds)
+        plot_sum_throughputs(coding, throughput_agg, speeds)
 
 
     pylab.show()

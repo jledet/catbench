@@ -36,8 +36,8 @@ class Slave(threading.Thread):
         self.ip = ip
         self.bat_ip = bat_ip
 
-    def set_node_ip(self, ip):
-        self.node.set_ip(ip)
+    def set_node_ip(self, ip, mac):
+        self.node.set_ip(ip, mac)
         self.node.set_local()
 
     def set_flow(self, flow):
@@ -87,7 +87,7 @@ class Slave(threading.Thread):
                         "total": int(r[3]),
                         "pl": float(r[4])
                         }
-                print("{:10s} {throughput: 4.1f} kb/s | {jitter: 2.1f} ms | {lost: 4d}/{total: 4d} ({pl: 3.1f}%)".format(self.name.title(), **self.res))
+                print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(self.name.title(), **self.res))
                 self.timestamp = time.time()
                 self.finish.set()
             except Exception as e:
@@ -103,13 +103,16 @@ class Node():
         self.forward_ip = None
         self.port = 9988
         nodes.append(self)
+        self.endnode = False
 
-    def set_ip(self, ip):
+    def set_ip(self, ip, mac):
         self.ip = ip
         self.forward_ip = ip
+        self.mac = mac
 
     def set_local(self):
         self.forward_ip = "localhost"
+        self.endnode = True
         self.port = get_port()
 
 def start_slaves():
@@ -118,6 +121,7 @@ def start_slaves():
         slave.start_tunnel()
 
 def stop_slaves():
+    print("Cleaning up")
     for slave in slaves:
         slave.stop_iperf()
         slave.stop_tunnel()
@@ -144,6 +148,15 @@ def check_slave_times():
     for slave in slaves:
         if slave.flow and abs(last.timestamp - slave.timestamp) > max_diff:
             return False
+    return True
+
+def check_node_paths(stats):
+    for node in nodes:
+        if node.endnode:
+            origs = stats.nexthops(node)
+            for orig in nodes:
+                if orig.endnode and origs.has_key(orig.mac) and origs[orig.mac] == orig.mac:
+                    return False
     return True
 
 def wait_slaves():

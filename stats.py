@@ -4,6 +4,7 @@ import argparse
 import time
 import cmd
 import threading
+import re
 
 stats = []
 signal = threading.Event()
@@ -43,8 +44,9 @@ class Stats(threading.Thread):
 
                 cpu = self.read_cpu()
                 if cpu:
+                    self.origs = self.read_origs()
                     stats = self.read_meas()
-                    stats = self.parse_meas(stats, cpu)
+                    stats = self.parse_meas(stats, cpu, self.origs)
                     self.append_stats(stats)
 
                 time.sleep(self.interval)
@@ -56,6 +58,12 @@ class Stats(threading.Thread):
         sock = cmd.connect(self.host)
         stats = cmd.read_cmd(sock, cmd.clear_path)
         sock.close()
+
+    def read_origs(self):
+        sock = cmd.connect(self.host)
+        origs = cmd.read_cmd(sock, cmd.orig_path)
+        sock.close()
+        return re.findall("([0-9a-fA-F:]{17}) +\d\.\d+s +\((\d+)\) ([0-9a-fA-F:]{17})", origs)
 
     def read_meas(self):
         sock = cmd.connect(self.host)
@@ -80,11 +88,12 @@ class Stats(threading.Thread):
             idle = self.total_idle - last_idle
             return int(100*(total - idle)/total)
 
-    def parse_meas(self, meas, cpu):
+    def parse_meas(self, meas, cpu, origs):
         out = {}
-        out['timestamp'] = int(time.time())
         out['cpu'] = cpu
         out['test'] = self.test
+        out['origs'] = origs
+        out['timestamp'] = int(time.time())
 
         for line in meas.split('\n'):
             if ':' not in line:
@@ -117,10 +126,15 @@ def results():
 
     return res
 
-def last_result(name):
+def nexthops(node):
+    origs = {}
     for stat in stats:
-        if stat.name == name:
-            return stat.stats[-1]
+        if stat.name == node.name:
+            for orig in stat.origs:
+                origs[orig[0]] = orig[2]
+                break
+
+    return origs
 
 def start(test):
     for stat in stats:
