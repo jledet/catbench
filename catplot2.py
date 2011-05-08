@@ -55,34 +55,31 @@ def slaves_throughput(samples, coding, slave):
         throughputs.append(avg)
     return speeds,throughputs
 
-def plot_throughput(slave, coding, speed, throughput):
+def plot_throughput(samples, slave, coding):
+    speeds, throughputs = slaves_throughput(samples, coding, slave)
     legends.append("{}{}".format(slave.title(), " with Network Coding" if coding == "coding" else ""))
-    pylab.plot(speed, throughput, linewidth=2)
+    pylab.plot(speeds, throughputs, linewidth=2)
+    return speeds, throughputs
 
 def plot_coding_gain(slave, speed, gain):
     legends.append("Coding Gain for {}".format(slave.title()))
     pylab.plot(speed, gain, linewidth=2)
 
-def plot_throughputs(samples, mx):
-    # Aggregated througputs used for coding gain calculation
-    throughput_agg = {}
-    coding_gain    = {}
-
+def plot_avg_throughputs(coding, throughputs, speeds):
     # Calculate and plot average throughput
-    for coding in samples:
-        if not coding in throughput_agg:
-            throughput_agg[coding] = {}
-        for slave in samples[coding]['slaves']:
-            speeds, throughputs = slaves_throughput(samples, coding, slave)
-            throughput_agg[coding][slave] = throughputs
-            plot_throughput(slave, coding, speeds, throughputs)
+    pylab.figure()
+    avg = numpy.mean(throughputs, axis=0)
+    pylab.plot(speeds, avg, linewidth=2)
 
-    # Calculate and plot coding gain
-    for slave in samples['coding']['slaves']:
-        coding_gain[slave] = map(operator.sub, throughput_agg['coding'][slave], throughput_agg['nocoding'][slave]) 
-        plot_coding_gain(slave, speeds, coding_gain[slave])
+    gain = numpy.array(avg) - numpy.array(avg)
+    plot_coding_gain("", speeds, gain)
+
+#    # Calculate and plot coding gain
+#    for slave in samples['coding']['slaves']:
+#        coding_gain[slave] = map(operator.sub, throughput_agg['coding'][slave], throughput_agg['nocoding'][slave]) 
+#        plot_coding_gain(slave, speeds, coding_gain[slave])
    
-    theo_max = speeds if not mx else map(lambda num: num if int(num) < mx else mx, speeds)
+    #theo_max = speeds if mx == 0 else map(lambda num: num if int(num) < mx else mx, speeds)
     #pylab.plot(speeds, theo_max, color="#000000", linestyle="--")
 
     pylab.title("Throughput vs. Load")
@@ -94,7 +91,7 @@ def plot_throughputs(samples, mx):
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--data", dest="data", default=None)
-    parser.add_argument("--max", dest="max", default=None)
+    parser.add_argument("--max", dest="max", default=0)
     args = parser.parse_args()
 
     if not args.data:
@@ -103,7 +100,14 @@ def main():
         data = cPickle.load(open(args.data, "rb"))
         print("Unpickled {}".format(args.data))
 
-    plot_throughputs(data, int(args.max))
+    for coding in data:
+        throughput_agg = []
+        for slave in data[coding]['slaves']:
+            speeds, throughputs = plot_throughput(data, slave, coding)
+            throughput_agg.append(throughputs)
+        plot_avg_throughputs(coding, throughput_agg, speeds)
+
+
     pylab.show()
 
 if __name__ == "__main__":
