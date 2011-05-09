@@ -183,6 +183,10 @@ def start(test):
 def stop():
     signal.clear()
 
+def shutdown():
+    for stat in stats:
+        stat.quit()
+
 def get_args():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-n', dest='node', required=True)

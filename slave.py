@@ -91,7 +91,8 @@ class Slave(threading.Thread):
                 self.timestamp = time.time()
                 self.finish.set()
             except Exception as e:
-                print("Test failed for {}! ({})".format(self.name, e))
+                if self.stopped:
+                    print("Test failed for {}! ({})".format(self.name, e))
                 self.error = True
                 self.finish.set()
 
@@ -123,6 +124,7 @@ def start_slaves():
 def stop_slaves():
     print("Cleaning up")
     for slave in slaves:
+        slave.stop()
         slave.stop_iperf()
         slave.stop_tunnel()
 

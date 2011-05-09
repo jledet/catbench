@@ -56,6 +56,7 @@ def main():
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
+    atexit.register(stats.shutdown)
 
     output = prepare_output(setup.slaves, setup.nodes, speeds)
     atexit.register(save_output, output=output, filename=args.outfile)
