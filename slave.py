@@ -189,19 +189,21 @@ def result_slaves():
             l.append(slave.res)
     return l
 
-def set_hold_nodes(hold=30):
+def set_hold_nodes(hold="30"):
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
         cmd.write_cmd(s, cmd.hold_path, hold)
 
-def set_rate_nodes(rate="2M", ifc="mesh0"):
+def set_rate_nodes(rate="2", ifc="mesh0"):
     if not rate == "auto":
-        rate = rate + " fixed"
+        rate = rate + "M fixed"
+
+    command = "iwconfig {} rate {}".format(ifc, rate)
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
-        cmd.exec_cmd(s, "iwconfig {} rate {}".format(ifc, rate))
+        cmd.exec_cmd(s, command)
 
 def set_rts_nodes(rts=True, ifc="mesh0"):
     rts_th = "10" if rts else "off"
