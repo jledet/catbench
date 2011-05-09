@@ -36,19 +36,23 @@ c = {
     "skyblue3":     "#204a87",
 }
 
-def avg_value(samples, coding, device, type, speed, field):
+def values(samples, coding, device, type, speed, field):
     s = samples[coding][type][device][speed]
     values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
-    return numpy.mean(values)
+    return numpy.mean(values),numpy.min(values),numpy.max(values)
 
 def slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
     speeds = sorted(sample.keys())
-    throughputs = []
+    throughputs_avg = []
+    throughputs_min = []
+    throughputs_max = []
     for speed in speeds:
-        avg = avg_value(samples, coding, slave, "slaves", speed, 'throughput')
-        throughputs.append(avg)
-    return speeds,throughputs
+        avg,min,max = values(samples, coding, slave, "slaves", speed, 'throughput')
+        throughputs_avg.append(avg)
+        throughputs_min.append(min)
+        throughputs_max.append(max)
+    return speeds,throughputs_avg,throughputs_min,throughputs_max
 
 def nodes_forwarded_coded(samples, coding, node):
     sample = samples[coding]['nodes'][node]
@@ -56,15 +60,17 @@ def nodes_forwarded_coded(samples, coding, node):
     forwarded = []
     coded     = []
     for speed in speeds:
-        avg_forwarded = avg_value(samples, coding, node, "nodes", speed, 'forwarded')
-        avg_coded     = avg_value(samples, coding, node, "nodes", speed, 'coded')
+        avg_forwarded,min_forwarded,max_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
+        avg_coded,min_forwarded,max_forwarded     = values(samples, coding, node, "nodes", speed, 'coded')
         forwarded.append(avg_forwarded)
         coded.append(avg_coded)
     return speeds,forwarded,coded
 
 def plot_slave_throughput(samples, slave):
     legends = []
-    throughputs = {} 
+    throughputs_avg = {} 
+    throughputs_min = {} 
+    throughputs_max = {} 
     fig = pylab.figure()
     ax = fig.add_subplot(111)
 
@@ -74,16 +80,19 @@ def plot_slave_throughput(samples, slave):
     ax.grid('on')
 
     for coding in samples:
-        speeds, throughputs[coding] = slaves_throughput(samples, coding, slave)
+        speeds, throughputs_avg[coding], throughputs_max[coding], throughputs_min[coding] = slaves_throughput(samples, coding, slave)
         legends.append("With Network Coding" if coding == "coding" else "Without Network Coding")
-        ax.plot(speeds, throughputs[coding], linewidth=2)
-    gain = numpy.array(throughputs['coding']) - numpy.array(throughputs['nocoding'])
+        ax.plot(speeds, throughputs_avg[coding], linewidth=2)
+        error_neg = numpy.array(throughputs_min[coding]) - numpy.array(throughputs_avg[coding])
+        error_pos = numpy.array(throughputs_avg[coding]) - numpy.array(throughputs_max[coding])
+        ax.errorbar(speeds, throughputs_avg[coding], yerr=numpy.array((error_neg, error_pos)))
+    gain = numpy.array(throughputs_avg['coding']) - numpy.array(throughputs_avg['nocoding'])
     ax.plot(speeds, gain, linewidth=2)
     legends.append("Coding Gain")
     ax.legend(legends, loc='upper left', shadow=True)
     ax.plot(speeds, speeds, color="#000000", linestyle="--")
 
-    return speeds, throughputs
+    return speeds,throughputs_avg,throughputs_min, throughputs_max
 
 def plot_total_throughputs(throughputs, speeds):
     # Calculate and plot average throughput
@@ -141,9 +150,9 @@ def main():
     # Plot slave throughputs and aggregated throughtput
     throughput_agg = {'coding': [], 'nocoding': []}
     for slave in data['coding']['slaves']:
-        speeds, throughputs = plot_slave_throughput(data, slave)
+        speeds, throughputs_avg, throughputs_min, throughputs_max = plot_slave_throughput(data, slave)
         for coding in data:
-            throughput_agg[coding].append(throughputs[coding])
+            throughput_agg[coding].append(throughputs_avg[coding])
     plot_total_throughputs(throughput_agg, speeds)
 
     # Plot node forward/code counters
