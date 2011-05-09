@@ -73,10 +73,10 @@ class Slave(threading.Thread):
         
                 min,avg,max,mdev = re.findall("(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)", output)[0]
                 self.delay_res = {
-                        'delay_min': min,
-                        'delay_avg': avg,
-                        'delay_max': max,
-                        'delay_mdev': mdev
+                        'delay_min': int(min),
+                        'delay_avg': int(avg),
+                        'delay_max': int(max),
+                        'delay_mdev': int(mdev)
                         }
                 self.delay_finish.set()
             except KeyboardInterrupt:
