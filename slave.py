@@ -66,6 +66,18 @@ class Slave(threading.Thread):
     def stop(self):
         self.stopped = True
 
+    def delay_run(self):
+        while not self.stopped:
+            signal.wait()
+            print("Delay woken!")
+            try:
+                command = "ping -q {}".format(self.flow.bat_ip)
+                self.run_command(command)
+            except Exception as e:
+                print("Delay failed for {}! ({})".format(self.name, e))
+                self.error = True
+                self.finish.set()
+
     def run(self):
         while not self.stopped:
             # Wait for start signal
@@ -187,6 +199,13 @@ def result_slaves():
     for slave in slaves:
         if slave.flow:
             l.append(slave.res)
+    return l
+
+def results_delays():
+    l = []
+    for slave in slaves:
+        if slave.flow:
+            l.append(slave.delay)
     return l
 
 def set_hold_nodes(hold=30):
