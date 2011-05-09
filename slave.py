@@ -30,6 +30,7 @@ class Slave(threading.Thread):
         self.error = False
         self.timestamp = None
         self.finish = threading.Event()
+        self.delay_finish = threading.Event()
         self.daemon = True
 
     def set_ip(self, ip, bat_ip):
@@ -60,13 +61,35 @@ class Slave(threading.Thread):
         self.stop_tunnel()
         os.system("ssh -o PasswordAuthentication=no -fNL {}:{}:9988 catwoman@{}".format(self.node.port, self.node.ip, self.ip))
 
-    def wait_finish(self):
-        self.finish.wait()
-
     def stop(self):
         self.stopped = True
 
+    def delay_run(self):
+        while not self.stopped:
+            signal.wait()
+            try:
+                command = "ping -q {} -w {}".format(self.flow.bat_ip, self.duration)
+                output  = self.run_command(command)
+        
+                min,avg,max,mdev = re.findall("(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)", output)[0]
+                self.delay_res = {
+                        'delay_min': min,
+                        'delay_avg': avg,
+                        'delay_max': max,
+                        'delay_mdev': mdev
+                        }
+                self.delay_finish.set()
+            except KeyboardInterrupt:
+                return 
+            except Exception as e:
+                if not self.stopped:
+                    print("Delay failed for {}! ({})".format(self.name, e))
+                self.error = True
+                self.delay_finish.set()
+
     def run(self):
+        self.delay_thread = threading.Thread(None, self.delay_run)
+        self.delay_thread.start()
         while not self.stopped:
             # Wait for start signal
             signal.wait()
@@ -90,8 +113,10 @@ class Slave(threading.Thread):
                 print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(self.name.title(), **self.res))
                 self.timestamp = time.time()
                 self.finish.set()
+            except KeyboardInterrupt:
+                return 
             except Exception as e:
-                if self.stopped:
+                if not self.stopped:
                     print("Test failed for {}! ({})".format(self.name, e))
                 self.error = True
                 self.finish.set()
@@ -171,7 +196,9 @@ def wait_slaves():
     for slave in slaves:
         if slave.flow:
             slave.finish.wait()
+            slave.delay_finish.wait()
             slave.finish.clear()
+            slave.delay_finish.clear()
 
             if slave.error:
                 ret = False
@@ -188,7 +215,9 @@ def result_slaves():
     l = []
     for slave in slaves:
         if slave.flow:
+            slave.res.update(slave.delay_res)
             l.append(slave.res)
+    print(l)
     return l
 
 def set_hold_nodes(hold="30"):
