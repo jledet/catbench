@@ -1,5 +1,6 @@
 # Dummy data for testing catplot
-dummy = {
+dummy_param = {'hold': 30}
+dummy_data = {
     'coding': {
         'slaves': {
             'alice': {
@@ -73,4 +74,4 @@ dummy = {
             },
         },
 }
-
+dummy = {'data': dummy_data, 'param': dummy_param}

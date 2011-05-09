@@ -1,8 +1,10 @@
 #!/usr/bin/env python2
+import sys
 import numpy
 import pylab
 import argparse
 import operator
+import random
 import cPickle
 import dummy
 
@@ -36,88 +38,116 @@ c = {
     "skyblue3":     "#204a87",
 }
 
+def get_slave_color(coding, err):
+    if coding == "coding":
+        return c['skyblue1'] if err else c['skyblue2']
+    else:
+        return c['chameleon1'] if err else c['chameleon2']
+    #else:
+    #    return c[random.choice(list(c.keys()))]
+
+
 def values(samples, coding, device, type, speed, field):
     s = samples[coding][type][device][speed]
+    if len(s) == 0:
+        return None, None, None
     values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
-    return numpy.mean(values),numpy.min(values),numpy.max(values)
+    
+    return numpy.mean(values),numpy.var(values),numpy.std(values)
 
 def slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
     speeds = sorted(sample.keys())
+    speeds_out      = []
     throughputs_avg = []
-    throughputs_min = []
-    throughputs_max = []
+    throughputs_var = []
+    throughputs_std = []
     for speed in speeds:
-        avg,min,max = values(samples, coding, slave, "slaves", speed, 'throughput')
+        avg,var,std = values(samples, coding, slave, "slaves", speed, 'throughput')
+        if avg == None:
+            continue
+
+        speeds_out.append(speed)
         throughputs_avg.append(avg)
-        throughputs_min.append(min)
-        throughputs_max.append(max)
-    return speeds,throughputs_avg,throughputs_min,throughputs_max
+        throughputs_var.append(var)
+        throughputs_std.append(std)
+
+    return speeds_out,throughputs_avg,throughputs_var,throughputs_std
 
 def nodes_forwarded_coded(samples, coding, node):
     sample = samples[coding]['nodes'][node]
     speeds = sorted(sample.keys())
-    forwarded = []
-    coded     = []
+    speeds_out = []
+    forwarded  = []
+    coded      = []
     for speed in speeds:
-        avg_forwarded,min_forwarded,max_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
-        avg_coded,min_forwarded,max_forwarded     = values(samples, coding, node, "nodes", speed, 'coded')
+        avg_forwarded,var_forwarded,std_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
+        if avg_forwarded == None:
+            continue
+        avg_coded,var_coded,std_coded             = values(samples, coding, node, "nodes", speed, 'coded')
+        speeds_out.append(speed)
         forwarded.append(avg_forwarded)
         coded.append(avg_coded)
-    return speeds,forwarded,coded
+    return speeds_out,forwarded,coded
 
 def plot_slave_throughput(samples, slave):
-    legends = []
     throughputs_avg = {} 
-    throughputs_min = {} 
-    throughputs_max = {} 
+    throughputs_var = {} 
+    throughputs_std = {}
     fig = pylab.figure()
     ax = fig.add_subplot(111)
 
-    ax.set_xlabel("Transmit speed [kb/s]")
-    ax.set_ylabel("Receive speed [kb/s]")
-    ax.set_title("Node {} Throughput vs. Load".format(slave.title()))
-    ax.grid('on')
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Throughput [kb/s]")
+    ax.set_title("Throughput vs. Offered Load for {}".format(slave.title()))
 
     for coding in samples:
-        speeds, throughputs_avg[coding], throughputs_max[coding], throughputs_min[coding] = slaves_throughput(samples, coding, slave)
-        legends.append("With Network Coding" if coding == "coding" else "Without Network Coding")
-        ax.plot(speeds, throughputs_avg[coding], linewidth=2)
-        error_neg = numpy.array(throughputs_min[coding]) - numpy.array(throughputs_avg[coding])
-        error_pos = numpy.array(throughputs_avg[coding]) - numpy.array(throughputs_max[coding])
-        ax.errorbar(speeds, throughputs_avg[coding], yerr=numpy.array((error_neg, error_pos)))
-    gain = numpy.array(throughputs_avg['coding']) - numpy.array(throughputs_avg['nocoding'])
-    ax.plot(speeds, gain, linewidth=2)
-    legends.append("Coding Gain")
-    ax.legend(legends, loc='upper left', shadow=True)
-    ax.plot(speeds, speeds, color="#000000", linestyle="--")
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = slaves_throughput(samples, coding, slave)
+        ax.plot(speeds, throughputs_avg[coding], linewidth=2, label=label, color=get_slave_color(coding, False))
+        ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
 
-    return speeds,throughputs_avg,throughputs_min, throughputs_max
+    ax_gain = ax.twinx()
+    gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
+    ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.plot(speeds, [0]*len(speeds), "k")
+    ax_gain.set_ylabel("Coding Gain")
+    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    
+    ax.legend(loc='upper left', shadow=True)
+    ax_gain.legend(loc='upper right', shadow=True)
+    #ax.plot(speeds, speeds, color="#000000", linestyle="--")
+
+    return speeds,throughputs_avg,throughputs_var,throughputs_std
 
 def plot_total_throughputs(throughputs, speeds):
     # Calculate and plot average throughput
     agg = {}
     agg['coding']   = numpy.add.reduce(throughputs['coding'])
     agg['nocoding'] = numpy.add.reduce(throughputs['nocoding'])
-    agg['gain']     = agg['coding'] - agg['nocoding']
+    agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding']) - 1
     agg_speeds = numpy.array(speeds) * len(throughputs['coding'])
 
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Transmit speed [kb/s]")
-    ax.set_ylabel("Receive speed [kb/s]")
-    ax.set_title("Aggregated Throughput vs. Load")
-    ax.grid('on')
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Throughput [kb/s]")
+    ax.set_title("Aggregated Throughput vs. Offered Load")
 
-    ax.plot(agg_speeds, agg['nocoding'], linewidth=2)
-    ax.plot(agg_speeds, agg['coding'], linewidth=2)
-    ax.plot(agg_speeds, agg['gain'], linewidth=2)
-    ax.legend(("Without Network Coding", "With Network Coding", "Coding Gain"), loc='upper left', shadow=True)
+    ax.plot(agg_speeds, agg['nocoding'], linewidth=2, label="Without Network Coding", color=get_slave_color('nocoding', False))
+    ax.plot(agg_speeds, agg['coding'], linewidth=2, label="With Network Coding", color=get_slave_color('coding', False))
 
-    ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
+    ax_gain = ax.twinx()
+    ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.plot(agg_speeds, [0]*len(agg_speeds), "k")
+    ax_gain.set_ylabel("Coding Gain")
+    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    #ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
+    ax.legend(loc='upper left', shadow=True)
 
 def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
+    speeds = 2 * numpy.array(speeds)
 
     # Normalize
     total = numpy.add.reduce((forwarded, numpy.array(coded)*2))
@@ -126,12 +156,11 @@ def plot_coding_forward(data, node):
 
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Transmit Speed [kb/s]")
-    ax.set_ylabel("Packets")
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Packets Ratio")
     ax.set_title("Packets Forwarded/Coded")
-    ax.grid('on')
-    ax.plot(speeds, forwarded_norm, linewidth=2)
-    ax.plot(speeds, coded_norm, linewidth=2)
+    ax.plot(speeds, forwarded_norm, linewidth=2, color=c['chameleon2'])
+    ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
     ax.legend(("Forwarded", "Coded"), loc='upper left', shadow=True)
 
 def main():
@@ -142,15 +171,21 @@ def main():
 
     # Read in pickled data
     if not args.data:
-        data = dummy.dummy
+        data = dummy.dummy['data']
+        param = dummy.dummy['param']
     else:
-        data = cPickle.load(open(args.data, "rb"))
-        print("Unpickled {}".format(args.data))
+        try:
+            data = cPickle.load(open(args.data, "rb"))
+            if 'data' in data:
+                data = data['data']
+        except Exception as e:
+            print("Failed to unpickle {} ({})".format(args.data, e))
+            sys.exit(1)
 
     # Plot slave throughputs and aggregated throughtput
     throughput_agg = {'coding': [], 'nocoding': []}
     for slave in data['coding']['slaves']:
-        speeds, throughputs_avg, throughputs_min, throughputs_max = plot_slave_throughput(data, slave)
+        speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
         for coding in data:
             throughput_agg[coding].append(throughputs_avg[coding])
     plot_total_throughputs(throughput_agg, speeds)
