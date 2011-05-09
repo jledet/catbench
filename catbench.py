@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--max", type=int, dest="speed_max", default=750, help="Maximum speed in kbit/s to test")
     parser.add_argument("--step", type=int, dest="speed_step", default=50, help="Speed steps in kbit/s")
     parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
-    parser.add_argument("--sleep", type=int, dest="sleep", default=10, help="Sleep time between tests in seconds")
+    parser.add_argument("--sleep", type=int, dest="sleep", default=30, help="Sleep time between tests in seconds")
     parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
     parser.add_argument("--rate", dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
@@ -58,7 +58,7 @@ def main():
     stats.create(setup.nodes, args.interval, stat_file)
     atexit.register(stats.shutdown)
 
-    output = prepare_output(setup.slaves, setup.nodes, speeds)
+    output = prepare_output(setup.slaves, setup.nodes, speeds, args)
     atexit.register(save_output, output=output, filename=args.outfile)
     for test in range(args.tests):
         for i in range(len(speeds)):
@@ -78,8 +78,9 @@ def main():
     end = time.time()
     print("Test finished in {} seconds".format(math.floor(end-start)))
 
-def prepare_output(slaves, nodes, speeds):
-    output = {
+def prepare_output(slaves, nodes, speeds, args):
+    output = {'param': args, 'data': {}}
+    output['data'] = {
             'coding': {
                 'slaves': {},
                 'nodes': {}
@@ -91,25 +92,25 @@ def prepare_output(slaves, nodes, speeds):
             }
 
     for slave in slaves:
-        output['coding']['slaves'][slave.name] = {}
-        output['nocoding']['slaves'][slave.name] = {}
+        output['data']['coding']['slaves'][slave.name] = {}
+        output['data']['nocoding']['slaves'][slave.name] = {}
         for speed in speeds:
-            output['coding']['slaves'][slave.name][speed] = []
-            output['nocoding']['slaves'][slave.name][speed] = []
+            output['data']['coding']['slaves'][slave.name][speed] = []
+            output['data']['nocoding']['slaves'][slave.name][speed] = []
 
     for node in nodes:
-        output['coding']['nodes'][node.name] = {}
-        output['nocoding']['nodes'][node.name] = {}
+        output['data']['coding']['nodes'][node.name] = {}
+        output['data']['nocoding']['nodes'][node.name] = {}
         for speed in speeds:
-            output['coding']['nodes'][node.name][speed] = []
-            output['nocoding']['nodes'][node.name][speed] = []
+            output['data']['coding']['nodes'][node.name][speed] = []
+            output['data']['nocoding']['nodes'][node.name][speed] = []
 
 
     return output
 
 def append_output(output, coding, slave, speed, sample):
     c = 'coding' if coding else 'nocoding'
-    output[c][slave.group][slave.name][speed].append(sample)
+    output['data'][c][slave.group][slave.name][speed].append(sample)
 
 def save_output(output, filename):
     try:
