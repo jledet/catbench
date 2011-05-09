@@ -12,6 +12,7 @@ purge_path = '/sys/devices/virtual/net/bat0/mesh/catwoman_purge'
 orig_path = '/sys/kernel/debug/batman_adv/bat0/originators'
 cpu_path = '/proc/stat'
 test_path = '/tmp/cmd_test'
+ath_cmd = 'athstats'
 
 def connect(host):
     port = "9988"
@@ -32,6 +33,13 @@ def recv_obj(sock):
     obj = cPickle.load(f)
     f.close()
     return obj
+
+def exec_cmd(sock, command):
+    cmd = {}
+    cmd['action'] = 'exec'
+    cmd['cmd'] = command
+    send_obj(sock, cmd)
+    return recv_obj(sock)
 
 def write_cmd(sock, path, val=''):
     cmd = {}
@@ -64,6 +72,7 @@ def get_args():
     parser.add_argument('-q', dest='quit', action='store_true')
     parser.add_argument('-u', dest='cpu', action='store_true')
     parser.add_argument('-o', dest='orig', action='store_true')
+    parser.add_argument('-a', dest='ath', action='store_true')
     parser.add_argument('-t', dest='test', action='store_true')
     parser.add_argument('-h', dest='hold')
     parser.add_argument('-p', dest='purge')
@@ -86,6 +95,8 @@ def parse_args(sock, args):
         return read_cmd(sock, orig_path)
     elif args.cpu:
         return read_cmd(sock, cpu_path)
+    elif args.ath:
+        return exec_cmd(sock, ath_cmd)
     elif args.quit:
         return close_cmd(sock)
 
