@@ -60,12 +60,11 @@ def main():
 
     output = prepare_output(setup.slaves, setup.nodes, speeds)
     atexit.register(save_output, output=output, filename=args.outfile)
-    for i in range(len(speeds)):
-        speed = speeds[i]
-        # Start testing
-        setup.configure_slaves(speed, args.duration, args.interval)
+    for test in range(args.tests):
+        for i in range(len(speeds)):
+            speed = speeds[i]
+            setup.configure_slaves(speed, args.duration, args.interval)
 
-        for test in range(args.tests):
             # Run test with network coding
             while not run_test(setup, stats, output, True, speed, test, eta, args.sleep):
                 pass
@@ -141,7 +140,10 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     ret = setup.wait_slaves()
 
     # Stop recording stats
-    stats.stop()
+    if not stats.stop():
+        print("Direct path detected. Sleeping")
+        time.sleep(sleep)
+        return False
 
     # Restart iperf server to avoid time skew
     setup.restart_iperf_slaves()
@@ -151,12 +153,6 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
 
     if not setup.check_slave_times():
         print("Slave time differs; restarting")
-        return False
-
-    if not setup.check_node_paths(stats):
-        # Sleep to let batman-adv restore links
-        print("Direct path detected, sleeping {} seconds".format(sleep))
-        time.sleep(sleep)
         return False
 
     res = stats.results()
@@ -169,6 +165,7 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     for r in res:
         slave = r.pop('slave')
         append_output(output, coding, slave, speed, r)
+        print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(slave.name.title(), **r))
 
     print
     return True

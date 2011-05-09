@@ -110,7 +110,6 @@ class Slave(threading.Thread):
                         "total": int(r[3]),
                         "pl": float(r[4])
                         }
-                print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(self.name.title(), **self.res))
                 self.timestamp = time.time()
                 self.finish.set()
             except KeyboardInterrupt:
@@ -182,15 +181,6 @@ def check_slave_times():
             return False
     return True
 
-def check_node_paths(stats):
-    for node in nodes:
-        if node.endnode:
-            origs = stats.nexthops(node)
-            for orig in nodes:
-                if orig.endnode and origs.has_key(orig.mac) and origs[orig.mac] == orig.mac:
-                    return False
-    return True
-
 def wait_slaves():
     ret = True
     for slave in slaves:
@@ -217,7 +207,6 @@ def result_slaves():
         if slave.flow:
             slave.res.update(slave.delay_res)
             l.append(slave.res)
-    print(l)
     return l
 
 def set_hold_nodes(hold="30"):

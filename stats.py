@@ -5,6 +5,7 @@ import time
 import cmd
 import threading
 import re
+import slave
 
 stats = []
 signal = threading.Event()
@@ -15,6 +16,8 @@ class Stats(threading.Thread):
         self.host = "{}:{}".format(node.forward_ip, node.port)
         self.name = node.name
         self.group = node.group
+        self.endnode = node.endnode
+        self.mac = node.mac
         self.interval = interval
         self.gun = gun
 
@@ -23,7 +26,7 @@ class Stats(threading.Thread):
         self.stats = []
         self.total_cpu = None
         self.total_idle = None
-        self.last_ath = None
+        self.error = False
 
         self.view = False
         self.stop = False
@@ -63,7 +66,7 @@ class Stats(threading.Thread):
         self.stats = []
         self.total_cpu = None
         self.total_idle = None
-        self.last_ath = None
+        self.error = False
 
     def read_ath(self):
         sock = cmd.connect(self.host)
@@ -84,23 +87,20 @@ class Stats(threading.Thread):
         out['rx'] = sum(map(lambda x: int(x), re.findall(" rx +(\d+)", ath)))
         out['tx'] = sum(map(lambda x: int(x), re.findall(" tx +(\d+)", ath)))
 
-        if not self.last_ath:
-            self.last_ath = out
-            return None
-
-        ath = {}
-        for key in out:
-            ath[key] = out[key] - self.last_ath[key]
-
-        self.last_ath = out
-
-        return ath
+        return out
 
     def read_origs(self):
         sock = cmd.connect(self.host)
         origs = cmd.read_cmd(sock, cmd.orig_path)
         sock.close()
-        return re.findall("([0-9a-fA-F:]{17}) +\d\.\d+s +\((\d+)\) ([0-9a-fA-F:]{17})", origs)
+        origs = re.findall("([0-9a-fA-F:]{17}) +\d\.\d+s +\((\d+)\) ([0-9a-fA-F:]{17})", origs)
+        out = {}
+        for nexthop in origs:
+            out[nexthop[0]] = (nexthop[2], nexthop[1])
+
+        self.check_origs(out)
+
+        return out
 
     def read_meas(self):
         sock = cmd.connect(self.host)
@@ -152,6 +152,18 @@ class Stats(threading.Thread):
             print("{}: {}".format(stat, meas[stat]))
         print
 
+    def check_origs(self, origs):
+        if not self.endnode:
+            return
+        for node in slave.nodes:
+            if not node.endnode:
+                continue
+            if not origs.has_key(node.mac):
+                continue
+            if origs[node.mac][0] == node.mac:
+                self.error = True
+
+
 def create(nodes, interval, filename):
     for node in nodes:
         stat = Stats(node, interval, signal)
@@ -161,18 +173,7 @@ def results():
     res = []
     for stat in stats:
         res.append([stat, stat.stats])
-
     return res
-
-def nexthops(node):
-    origs = {}
-    for stat in stats:
-        if stat.name == node.name:
-            for orig in stat.origs:
-                origs[orig[0]] = orig[2]
-                break
-
-    return origs
 
 def start(test):
     for stat in stats:
@@ -182,6 +183,11 @@ def start(test):
 
 def stop():
     signal.clear()
+    for stat in stats:
+        if stat.error:
+            return False
+
+    return True
 
 def shutdown():
     for stat in stats:
