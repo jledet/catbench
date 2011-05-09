@@ -23,6 +23,7 @@ class Stats(threading.Thread):
         self.stats = []
         self.total_cpu = None
         self.total_idle = None
+        self.last_ath = None
 
         self.view = False
         self.stop = False
@@ -43,10 +44,11 @@ class Stats(threading.Thread):
                     break
 
                 cpu = self.read_cpu()
+                ath = self.read_ath()
                 if cpu:
                     self.origs = self.read_origs()
                     stats = self.read_meas()
-                    stats = self.parse_meas(stats, cpu, self.origs)
+                    stats = self.parse_meas(stats, cpu, self.origs, ath)
                     self.append_stats(stats)
 
                 time.sleep(self.interval)
@@ -58,6 +60,41 @@ class Stats(threading.Thread):
         sock = cmd.connect(self.host)
         stats = cmd.read_cmd(sock, cmd.clear_path)
         sock.close()
+        self.stats = []
+        self.total_cpu = None
+        self.total_idle = None
+        self.last_ath = None
+
+    def read_ath(self):
+        sock = cmd.connect(self.host)
+        ath = cmd.exec_cmd(sock, cmd.ath_cmd)
+        sock.close()
+
+        out = {}
+        out['tx_management'] = int(re.findall("(\d+) tx management frames", ath)[0])
+        out['tx_failed'] = int(re.findall("(\d+) tx failed due to too many retries", ath)[0])
+        out['tx_short_retries'] = int(re.findall("(\d+) short on-chip tx retries", ath)[0])
+        out['tx_long_retries'] = int(re.findall("(\d+) long on-chip tx retries", ath)[0])
+        out['tx_noack'] = int(re.findall("(\d+) tx frames with no ack marked", ath)[0])
+        out['tx_rts'] = int(re.findall("(\d+) tx frames with rts enabled", ath)[0])
+        out['tx_short'] = int(re.findall("(\d+) tx frames with short preamble", ath)[0])
+        out['rx_bad_crc'] = int(re.findall("(\d+) rx failed due to bad CRC", ath)[0])
+        out['rx_too_short'] = int(re.findall("(\d+) rx failed due to frame too short", ath)[0])
+        out['rx_phy_err'] = int(re.findall("(\d+) PHY errors", ath)[0])
+        out['rx'] = sum(map(lambda x: int(x), re.findall(" rx +(\d+)", ath)))
+        out['tx'] = sum(map(lambda x: int(x), re.findall(" tx +(\d+)", ath)))
+
+        if not self.last_ath:
+            self.last_ath = out
+            return None
+
+        ath = {}
+        for key in out:
+            ath[key] = out[key] - self.last_ath[key]
+
+        self.last_ath = out
+
+        return ath
 
     def read_origs(self):
         sock = cmd.connect(self.host)
@@ -88,11 +125,12 @@ class Stats(threading.Thread):
             idle = self.total_idle - last_idle
             return int(100*(total - idle)/total)
 
-    def parse_meas(self, meas, cpu, origs):
+    def parse_meas(self, meas, cpu, origs, ath):
         out = {}
         out['cpu'] = cpu
         out['test'] = self.test
         out['origs'] = origs
+        out['ath'] = ath
         out['timestamp'] = int(time.time())
 
         for line in meas.split('\n'):
@@ -140,9 +178,6 @@ def start(test):
     for stat in stats:
         stat.clear_stats()
         stat.test = test
-        stat.stats = []
-        stat.total_cpu = None
-        stat.total_idle = None
     signal.set()
 
 def stop():
@@ -168,6 +203,7 @@ if __name__ == "__main__":
     try:
         s = Stats(node, args.interval)
         s.view = True
-        s.join()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
