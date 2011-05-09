@@ -1,10 +1,12 @@
 #!/usr/bin/env python2
-
 import sys
 import numpy
 import pylab
 import argparse
 import operator
+import random
+import cPickle
+import dummy
 
 c = {
     "aluminium1":   "#eeeeec",
@@ -36,204 +38,163 @@ c = {
     "skyblue3":     "#204a87",
 }
 
-colors_nc = [c["chameleon2"], c["plum2"], c["aluminium5"]]
-colors_no_nc = [c["skyblue3"], c["skyblue1"], c["skyblue2"]]
-colors_cg = [c["scarletred1"], c["scarletred2"], c["orange2"], c["scarletred3"], c["orange3"]]
-
-paper = {
-    'backend': 'eps',
-    'lines.markersize': 8,
-    'lines.linewidth': 2,
-    'font.size': 14,
-    'xtick.direction': 'out',
-    'xtick.minor.size': 1,
-    'ytick.direction': 'out',
-    'ytick.minor.size': 2,
-    'axes.linewidth' : 1,
-    'text.usetex': True,
-    'text.latex.unicode': True,
-    'figure.subplot.right': .98,
-    'figure.subplot.left': 0.11,
-    'figure.subplot.top': .98,
-    'figure.subplot.bottom': .09
-}
-
-big_fonts = {
-    'lines.markersize': 12,
-    'font.size': 21,
-    'figure.subplot.right': .96,
-    'figure.subplot.left': 0.13,
-    'figure.subplot.top': .96,
-    'figure.subplot.bottom': .13
-}
-
-def set_style(mode):
-    if mode == 'paper':
-        pylab.rcParams.update(paper)
-    elif mode == 'paper3rd':
-        pylab.rcParams.update(paper)
-        pylab.rcParams.update(big_fonts)
-    elif mode == 'default':
-        pylab.rcParams.setdefault
+def get_slave_color(coding, err):
+    if coding == "coding":
+        return c['skyblue1'] if err else c['skyblue2']
     else:
-        print "Warning: no such setting, using default"
-        change('default')
-
-def plot_slaves(files):
-    for filename in (files):
-        if not filename: continue
-        meas = {}
-        try:
-            f = open(filename)
-        except:
-            print("Failed to open {}".format(filename))
-            sys.exit(-1)
-        else:
-            # Read in all measurements
-            for line in f:
-                if not line.startswith("#"):
-                    slave,test_speed,test,speed,delay,lost,total,pl = line.split(",")
-                    if not slave in meas: meas[slave] = []
-                    meas[slave].append((test_speed,test,speed,delay,lost,total,pl))
-
-            y = {}
-            x = {}
-            for i in meas:
-                slave_speeds = {}
-                for m in meas[i]:
-                    ts = m[0] # Read test_speed
-                    s  = m[2] # Read speed
-                    if not ts in slave_speeds: slave_speeds[ts] = []
-                    slave_speeds[ts].append(float(s))
-                x[i] = map(lambda l: int(l), slave_speeds)
-                y[i] = map(lambda j: sum(slave_speeds[j])/len(slave_speeds[j]), slave_speeds)
-                x[i],y[i] = zip(*sorted(zip(x[i],y[i]))) # Sort x and y based on x
-
-            if filename == args.with_nc:
-                y_nc = y
-                x_nc = x
-            elif filename == args.without_nc:
-                y_no_nc = y
-                x_no_nc = x
-
-    legends = []
-    coding_gain = {}
-    pylab.figure(0)
-    pylab.hold('on')
-    for slave in y_nc:
-        legends.append(slave.title() + ", CATWOMAN")
-        pylab.plot(x_nc[slave], y_nc[slave], color=colors_nc[last_color_nc], linewidth=2)
-        last_color_nc += 1
-        legends.append(slave.title() + ", No CATWOMAN")
-        pylab.plot(x_no_nc[slave], y_no_nc[slave], color=colors_no_nc[last_color_no_nc], linewidth=2)
-        last_color_no_nc += 1
-        if len(y_nc[slave]) == len(y_no_nc[slave]):
-            coding_gain[slave] = map(operator.sub, y_nc[slave], y_no_nc[slave])
-            pylab.plot(x_no_nc[slave], coding_gain[slave], color=colors_cg[last_color_cg], linewidth=2)
-            last_color_cg += 1
-            legends.append(slave.title() + " coding gain")
-
-    pylab.plot(x[x.keys()[0]], x[x.keys()[0]], color="#000000", linestyle="--")
-    #legends.append("Theoretical limit")
-    pylab.title("Throughput vs. Load")
-    pylab.xlabel("Transmit speed [kb/s]")
-    pylab.ylabel("Receive speed [kb/s]")
-    pylab.legend(legends, loc='upper left', shadow=True)
-    pylab.grid('on')
+        return c['chameleon1'] if err else c['chameleon2']
+    #else:
+    #    return c[random.choice(list(c.keys()))]
 
 
+def values(samples, coding, device, type, speed, field):
+    s = samples[coding][type][device][speed]
+    if len(s) == 0:
+        return None, None, None
+    values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
+    
+    return numpy.mean(values),numpy.var(values),numpy.std(values)
+
+def slaves_throughput(samples, coding, slave):
+    sample = samples[coding]['slaves'][slave]
+    speeds = sorted(sample.keys())
+    speeds_out      = []
+    throughputs_avg = []
+    throughputs_var = []
+    throughputs_std = []
+    for speed in speeds:
+        avg,var,std = values(samples, coding, slave, "slaves", speed, 'throughput')
+        if avg == None:
+            continue
+
+        speeds_out.append(speed)
+        throughputs_avg.append(avg)
+        throughputs_var.append(var)
+        throughputs_std.append(std)
+
+    return speeds_out,throughputs_avg,throughputs_var,throughputs_std
+
+def nodes_forwarded_coded(samples, coding, node):
+    sample = samples[coding]['nodes'][node]
+    speeds = sorted(sample.keys())
+    speeds_out = []
+    forwarded  = []
+    coded      = []
+    for speed in speeds:
+        avg_forwarded,var_forwarded,std_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
+        if avg_forwarded == None:
+            continue
+        avg_coded,var_coded,std_coded             = values(samples, coding, node, "nodes", speed, 'coded')
+        speeds_out.append(speed)
+        forwarded.append(avg_forwarded)
+        coded.append(avg_coded)
+    return speeds_out,forwarded,coded
+
+def plot_slave_throughput(samples, slave):
+    throughputs_avg = {} 
+    throughputs_var = {} 
+    throughputs_std = {}
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Throughput [kb/s]")
+    ax.set_title("Throughput vs. Offered Load for {}".format(slave.title()))
+
+    for coding in samples:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = slaves_throughput(samples, coding, slave)
+        ax.plot(speeds, throughputs_avg[coding], linewidth=2, label=label, color=get_slave_color(coding, False))
+        ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
+
+    ax_gain = ax.twinx()
+    gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
+    ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.plot(speeds, [0]*len(speeds), "k")
+    ax_gain.set_ylabel("Coding Gain")
+    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    
+    ax.legend(loc='upper left', shadow=True)
+    ax_gain.legend(loc='upper right', shadow=True)
+    #ax.plot(speeds, speeds, color="#000000", linestyle="--")
+
+    return speeds,throughputs_avg,throughputs_var,throughputs_std
+
+def plot_total_throughputs(throughputs, speeds):
+    # Calculate and plot average throughput
+    agg = {}
+    agg['coding']   = numpy.add.reduce(throughputs['coding'])
+    agg['nocoding'] = numpy.add.reduce(throughputs['nocoding'])
+    agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding']) - 1
+    agg_speeds = numpy.array(speeds) * len(throughputs['coding'])
+
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Throughput [kb/s]")
+    ax.set_title("Aggregated Throughput vs. Offered Load")
+
+    ax.plot(agg_speeds, agg['nocoding'], linewidth=2, label="Without Network Coding", color=get_slave_color('nocoding', False))
+    ax.plot(agg_speeds, agg['coding'], linewidth=2, label="With Network Coding", color=get_slave_color('coding', False))
+
+    ax_gain = ax.twinx()
+    ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.plot(agg_speeds, [0]*len(agg_speeds), "k")
+    ax_gain.set_ylabel("Coding Gain")
+    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    #ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
+    ax.legend(loc='upper left', shadow=True)
+
+def plot_coding_forward(data, node):
+    speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
+    speeds = 2 * numpy.array(speeds)
+
+    # Normalize
+    total = numpy.add.reduce((forwarded, numpy.array(coded)*2))
+    forwarded_norm = numpy.true_divide(forwarded, total)
+    coded_norm = numpy.true_divide(coded, total)
+
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Packets Ratio")
+    ax.set_title("Packets Forwarded/Coded")
+    ax.plot(speeds, forwarded_norm, linewidth=2, color=c['chameleon2'])
+    ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
+    ax.legend(("Forwarded", "Coded"), loc='upper left', shadow=True)
 
 def main():
-    last_color_nc = 0
-    last_color_no_nc = 0
-    last_color_cg = 0
-    set_style('default')
-
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--with-nc", required=False, dest="with_nc", default=None)
-    parser.add_argument("--without-nc", required=False, dest="without_nc", default=None)
-    parser.add_argument("--nodes-with-nc", required=False, dest="nodes_with_nc", default=None)
-    parser.add_argument("--nodes-without-nc", required=False, dest="nodes_without_nc", default=None)
+    parser.add_argument("--data", dest="data", default=None)
+    parser.add_argument("--max", dest="max", default=0)
     args = parser.parse_args()
 
-
-    # Plot coding/forward rate
-    legends = []
-    for filename in (args.nodes_with_nc, args.nodes_without_nc):
-        if not filename: continue
-        nmeas = {}
+    # Read in pickled data
+    if not args.data:
+        data = dummy.dummy['data']
+        param = dummy.dummy['param']
+    else:
         try:
-            f = open(filename)
-        except:
-            print("Failed to open {}".format(filename))
-            sys.exit(-1)
-        else:
-            # Read in all measurements
-            for line in f:
-                if not line.startswith("#"):
-                    timestamp,node,speed,test,tx,rx,fw,coded,dropped,decoded,failed,dbuf,cbuf,cpu,last = line.split(",")
-                    if not last.strip() == "1": continue
-                    if not node in nmeas: nmeas[node] = []
-                    nmeas[node].append((timestamp,speed,test,tx,rx,fw,coded,dropped,decoded,failed,dbuf,cbuf,cpu))
+            data = cPickle.load(open(args.data, "rb"))
+            if 'data' in data:
+                data = data['data']
+        except Exception as e:
+            print("Failed to unpickle {} ({})".format(args.data, e))
+            sys.exit(1)
 
-            y_fw = {}
-            y_coded = {}
-            x = {}
-            for i in nmeas:
-                node_speeds = {}
-                for m in nmeas[i]:
-                    s     = m[1] # Read speed
-                    fw    = m[5] # Read forwared
-                    coded = m[6] # Read coded
-                    if not s in node_speeds: node_speeds[s] = [[],[]]
-                    node_speeds[s][0].append(int(fw))
-                    node_speeds[s][1].append(int(coded))
-                
-                print(node_speeds)
-                x[i] = map(lambda l: int(l), node_speeds)
-                y_fw[i] = map(lambda j: sum(node_speeds[j][0])/len(node_speeds[j][0]), node_speeds)
-                y_coded[i] = map(lambda j: sum(node_speeds[j][1])/len(node_speeds[j][1]), node_speeds)
-                x[i],y_fw[i] = zip(*sorted(zip(x[i],y_fw[i]))) # Sort x and y based on x
-                x[i],y_coded[i] = zip(*sorted(zip(x[i],y_coded[i]))) # Sort x and y based on x
-                #print(x)
-                #print(y_fw)
-                #print(y_coded)
+    # Plot slave throughputs and aggregated throughtput
+    throughput_agg = {'coding': [], 'nocoding': []}
+    for slave in data['coding']['slaves']:
+        speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
+        for coding in data:
+            throughput_agg[coding].append(throughputs_avg[coding])
+    plot_total_throughputs(throughput_agg, speeds)
 
-            if filename == args.nodes_with_nc:
-                y_coded_nc = y_coded
-                y_fw_nc = y_fw
-                x_nc = x
-            elif filename == args.nodes_without_nc:
-                y_coded_no_nc = y_coded
-                y_fw_no_nc = y_fw
-                x_no_nc = x
-        finally:
-            f.close()
+    # Plot node forward/code counters
+    for node in data['coding']['nodes']:
+        if not node in data['coding']['slaves']:
+            plot_coding_forward(data, node)
 
-    last_color_nc = 0
-    last_color_no_nc = 0
-    last_color_cg = 0
-    pylab.figure(1)
-    for node in y_coded_nc:
-        print(node)
-        print(x_nc)
-        print(y_coded_nc)
-        legends.append(node.title() + " coded, CATWOMAN")
-        pylab.plot(x_nc[node], y_coded_nc[node], color=colors_nc[last_color_nc], linewidth=2)
-        last_color_nc += 1
-        legends.append(node.title() + " forwarded, CATWOMAN")
-        pylab.plot(x_nc[node], y_fw_nc[node], color=colors_no_nc[last_color_no_nc], linewidth=2)
-        last_color_no_nc += 1
-        #legends.append(node.title() + " coded, No CATWOMAN")
-        #pylab.plot(x_no_nc[node], y_coded_no_nc[node], color=colors_no_nc[last_color_no_nc], linewidth=2)
-        #legends.append(node.title() + " forwarded, No CATWOMAN")
-        #pylab.plot(x_no_nc[node], y_fw_no_nc[node], color=colors_no_nc[last_color_no_nc], linewidth=2)
-        #last_color_no_nc += 1
-    pylab.title("Coded/Forwarded packets vs. Load")
-    pylab.xlabel("Transmit speed [kb/s]")
-    pylab.ylabel("Packets")
-    pylab.legend(legends, loc='upper left', shadow=True)
-    pylab.grid('on')
     pylab.show()
 
 if __name__ == "__main__":
