@@ -84,7 +84,7 @@ def nodes_forwarded_coded(samples, coding, node):
         avg_forwarded,var_forwarded,std_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
         if avg_forwarded == None:
             continue
-        avg_coded,var_coded,std_coded             = values(samples, coding, node, "nodes", speed, 'coded')
+        avg_coded,var_coded,std_coded = values(samples, coding, node, "nodes", speed, 'coded')
         speeds_out.append(speed)
         forwarded.append(avg_forwarded)
         coded.append(avg_coded)
@@ -163,6 +163,50 @@ def plot_coding_forward(data, node):
     ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
     ax.legend(("Forwarded", "Coded"), loc='upper left', shadow=True)
 
+def plot_ath_stats(data, node):
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_ylabel("Frames")
+    ax.set_title("Frame Transmission Errors for {}".format(node.title()))
+    
+    for coding in data:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        sample = data[coding]['nodes'][node]
+        speeds = sorted(sample.keys())
+        tx_failed        = []
+        tx_short_retries = []
+        tx_long_retries  = []
+        for speed in speeds:
+            stats = sample[speed]
+            #print(stats)
+            #tx_failed.append(stats[0][-1]['ath']['tx_failed'] - stats[0][0]['ath']['tx_failed'])
+            txsr = numpy.mean(map(lambda val: val[-1]['ath']['tx_short_retries'] - val[0]['ath']['tx_short_retries'], stats))
+            tx_short_retries.append(numpy.mean(txsr))
+            #tx_long_retries.append(stats[0][len(stats)]['ath']['tx_long_retries'] - stats[0][0]['ath']['tx_long_retries'])
+        #ax.plot(speeds, tx_failed, linewidth=2, label="Transmission Failed")
+        ax.plot(speeds, tx_short_retries, linewidth=2, label="RTS Retransmissions {}".format(label), color=get_slave_color(coding, False))
+        #ax.plot(speeds, tx_long_retries, linewidth=2, label="Long Frame Retransmission")
+    ax.legend(loc='upper left', shadow=True)
+
+def plot_avg_delay(data, slave):
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_ylabel("Delay [ms]")
+    ax.set_title("Average Delay for {}".format(slave.title()))
+    
+    for coding in data:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        sample = data[coding]['slaves'][slave]
+        speeds = sorted(sample.keys())
+        avg_delay = []
+        for speed in speeds:
+            stats = sample[speed]
+            ad = numpy.mean(map(lambda val: float(val['delay_avg']), stats))
+            avg_delay.append(numpy.mean(ad))
+        ax.plot(speeds, avg_delay, linewidth=2, label=label, color=get_slave_color(coding, False))
+    ax.legend(loc='upper left', shadow=True)
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--data", dest="data", default=None)
@@ -185,6 +229,7 @@ def main():
     # Plot slave throughputs and aggregated throughtput
     throughput_agg = {'coding': [], 'nocoding': []}
     for slave in data['coding']['slaves']:
+        plot_avg_delay(data, slave)
         speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
         for coding in data:
             throughput_agg[coding].append(throughputs_avg[coding])
@@ -192,6 +237,7 @@ def main():
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
+        plot_ath_stats(data, node)
         if not node in data['coding']['slaves']:
             plot_coding_forward(data, node)
 
