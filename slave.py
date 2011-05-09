@@ -72,8 +72,8 @@ class Slave(threading.Thread):
             signal.wait()
 
             try:
-                cmd = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, self.speed, self.duration, self.interval)
-                output = self.run_command(cmd)
+                command = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, self.speed, self.duration, self.interval)
+                output = self.run_command(command)
 
                 r       = re.findall("(\d*\.?\d*) *Kbits/sec *(\d+\.\d+)+ ms *(\d+)/ *(\d+) *\((\d*\.?\d+)\%\)", output)[0]
                 speeds  = re.findall("([0-9]+) Kbits/sec\n", output)[0]
@@ -135,6 +135,11 @@ def prepare_slaves():
         if slave.flow:
             slave.start()
 
+def configure_nodes(hold, rts, rate):
+    set_hold_nodes(hold)
+    set_rts_nodes(rts)
+    set_rate_nodes(rate)
+
 def signal_slaves(test):
     for slave in slaves:
         slave.test = test
@@ -183,6 +188,27 @@ def result_slaves():
         if slave.flow:
             l.append(slave.res)
     return l
+
+def set_hold_nodes(hold=30):
+    for node in nodes:
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        cmd.write_cmd(s, cmd.hold_path, hold)
+
+def set_rate_nodes(rate="2M", ifc="mesh0"):
+    if not rate == "auto":
+        rate = rate + " fixed"
+    for node in nodes:
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        cmd.exec_cmd(s, "iwconfig {} rate {}".format(ifc, rate))
+
+def set_rts_nodes(rts=True, ifc="mesh0"):
+    rts_th = "10" if rts else "off"
+    for node in nodes:
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        cmd.exec_cmd(s, "iwconfig {} rts {}".format(ifc, rts_th))
 
 def set_coding_nodes(coding=True):
     c = "1" if coding else "0"

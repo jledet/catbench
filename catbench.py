@@ -14,20 +14,20 @@ import cmd
 import stats
 import cPickle as pickle
 
-nw = datetime.datetime.now().isoformat(" ")
-
 def main():
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--output", dest="outfile", default="test.csv")
-    parser.add_argument("--title", dest="title", default=nw)
-    parser.add_argument("--config", dest="config", default="ab")
-    parser.add_argument("--tests", type=int, dest="tests", default=1)
-    parser.add_argument("--duration", type=int, dest="duration", default=60)
-    parser.add_argument("--min", type=int, dest="speed_min", default=200)
-    parser.add_argument("--max", type=int, dest="speed_max", default=750)
-    parser.add_argument("--step", type=int, dest="speed_step", default=50)
-    parser.add_argument("--interval", type=int, dest="interval", default=1)
-    parser.add_argument("--sleep", type=int, dest="sleep", default=10)
+    parser = argparse.ArgumentParser(description="CATWOMAN benchmark program.")
+    parser.add_argument("--output", dest="outfile", default="test.pickle", help="Output test data to FILE", metavar="FILE")
+    parser.add_argument("--config", dest="config", default="ab", help="Used configuration. Must be either 'ab' or 'x'")
+    parser.add_argument("--tests", type=int, dest="tests", default=1, help="Number of test runs")
+    parser.add_argument("--duration", type=int, dest="duration", default=60, help="Duration of each test in seconds")
+    parser.add_argument("--min", type=int, dest="speed_min", default=200, help="Minimum speed to kbit/s test")
+    parser.add_argument("--max", type=int, dest="speed_max", default=750, help="Maximum speed in kbit/s to test")
+    parser.add_argument("--step", type=int, dest="speed_step", default=50, help="Speed steps in kbit/s")
+    parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
+    parser.add_argument("--sleep", type=int, dest="sleep", default=10, help="Sleep time between tests in seconds")
+    parser.add_argument("--hold", type=int, dest="hold", default=30, help="Hold time when coding in ms")
+    parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
+    parser.add_argument("--rate", dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
     args = parser.parse_args()
 
     if args.config == "ab":
@@ -52,6 +52,7 @@ def main():
     # Configure slaves and nodes
     setup.start_slaves()
     setup.prepare_slaves()
+    setup.configure_nodes(args.hold, args.rts, args.rate)
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
