@@ -30,6 +30,7 @@ class Slave(threading.Thread):
         self.error = False
         self.timestamp = None
         self.finish = threading.Event()
+        self.delay_finish = threading.Event()
         self.daemon = True
 
     def set_ip(self, ip, bat_ip):
@@ -60,25 +61,35 @@ class Slave(threading.Thread):
         self.stop_tunnel()
         os.system("ssh -o PasswordAuthentication=no -fNL {}:{}:9988 catwoman@{}".format(self.node.port, self.node.ip, self.ip))
 
-    def wait_finish(self):
-        self.finish.wait()
-
     def stop(self):
         self.stopped = True
 
     def delay_run(self):
         while not self.stopped:
             signal.wait()
-            print("Delay woken!")
             try:
-                command = "ping -q {}".format(self.flow.bat_ip)
-                self.run_command(command)
+                command = "ping -q {} -w {}".format(self.flow.bat_ip, self.duration)
+                output  = self.run_command(command)
+        
+                min,avg,max,mdev = re.findall("(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)", output)[0]
+                self.delay_res = {
+                        'delay_min': min,
+                        'delay_avg': avg,
+                        'delay_max': max,
+                        'delay_mdev': mdev
+                        }
+                self.delay_finish.set()
+            except KeyboardInterrupt:
+                return 
             except Exception as e:
-                print("Delay failed for {}! ({})".format(self.name, e))
+                if not self.stopped:
+                    print("Delay failed for {}! ({})".format(self.name, e))
                 self.error = True
-                self.finish.set()
+                self.delay_finish.set()
 
     def run(self):
+        self.delay_thread = threading.Thread(None, self.delay_run)
+        self.delay_thread.start()
         while not self.stopped:
             # Wait for start signal
             signal.wait()
@@ -102,8 +113,11 @@ class Slave(threading.Thread):
                 print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(self.name.title(), **self.res))
                 self.timestamp = time.time()
                 self.finish.set()
+            except KeyboardInterrupt:
+                return 
             except Exception as e:
-                print("Test failed for {}! ({})".format(self.name, e))
+                if not self.stopped:
+                    print("Test failed for {}! ({})".format(self.name, e))
                 self.error = True
                 self.finish.set()
 
@@ -135,6 +149,7 @@ def start_slaves():
 def stop_slaves():
     print("Cleaning up")
     for slave in slaves:
+        slave.stop()
         slave.stop_iperf()
         slave.stop_tunnel()
 
@@ -181,7 +196,9 @@ def wait_slaves():
     for slave in slaves:
         if slave.flow:
             slave.finish.wait()
+            slave.delay_finish.wait()
             slave.finish.clear()
+            slave.delay_finish.clear()
 
             if slave.error:
                 ret = False
@@ -198,29 +215,26 @@ def result_slaves():
     l = []
     for slave in slaves:
         if slave.flow:
+            slave.res.update(slave.delay_res)
             l.append(slave.res)
+    print(l)
     return l
 
-def results_delays():
-    l = []
-    for slave in slaves:
-        if slave.flow:
-            l.append(slave.delay)
-    return l
-
-def set_hold_nodes(hold=30):
+def set_hold_nodes(hold="30"):
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
         cmd.write_cmd(s, cmd.hold_path, hold)
 
-def set_rate_nodes(rate="2M", ifc="mesh0"):
+def set_rate_nodes(rate="2", ifc="mesh0"):
     if not rate == "auto":
-        rate = rate + " fixed"
+        rate = rate + "M fixed"
+
+    command = "iwconfig {} rate {}".format(ifc, rate)
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
-        cmd.exec_cmd(s, "iwconfig {} rate {}".format(ifc, rate))
+        cmd.exec_cmd(s, command)
 
 def set_rts_nodes(rts=True, ifc="mesh0"):
     rts_th = "10" if rts else "off"

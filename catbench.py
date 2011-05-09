@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--step", type=int, dest="speed_step", default=50, help="Speed steps in kbit/s")
     parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
     parser.add_argument("--sleep", type=int, dest="sleep", default=10, help="Sleep time between tests in seconds")
-    parser.add_argument("--hold", type=int, dest="hold", default=30, help="Hold time when coding in ms")
+    parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
     parser.add_argument("--rate", dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
     args = parser.parse_args()
@@ -56,6 +56,7 @@ def main():
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
+    atexit.register(stats.shutdown)
 
     output = prepare_output(setup.slaves, setup.nodes, speeds)
     atexit.register(save_output, output=output, filename=args.outfile)
