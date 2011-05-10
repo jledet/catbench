@@ -68,24 +68,31 @@ def get_slave_color(coding, err):
 
 def values(samples, coding, device, type, speed, field):
     s = samples[coding][type][device][speed]
+
+    # Some speeds don't contain data (e.g. if the benchmark is interrupted)
     if len(s) == 0:
         return None, None, None
+
+    # Read the (last if node stats) sample for each test in the given speed
     values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
-    
+
     return numpy.mean(values),numpy.var(values),numpy.std(values)
 
-def slaves_throughput(samples, coding, slave):
+def read_slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
     speeds = sorted(sample.keys())
     speeds_out      = []
     throughputs_avg = []
     throughputs_var = []
     throughputs_std = []
+
+    # Read measurements for each speed
     for speed in speeds:
         avg,var,std = values(samples, coding, slave, "slaves", speed, 'throughput')
         if avg == None:
             continue
 
+        # The speed contains measurements, so add data
         speeds_out.append(speed)
         throughputs_avg.append(avg)
         throughputs_var.append(var)
@@ -99,14 +106,19 @@ def nodes_forwarded_coded(samples, coding, node):
     speeds_out = []
     forwarded  = []
     coded      = []
+
+    # Read measurements for each speed
     for speed in speeds:
         avg_forwarded,var_forwarded,std_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
         if avg_forwarded == None:
             continue
+
+        # The speed contains measurements, so read and add data
         avg_coded,var_coded,std_coded = values(samples, coding, node, "nodes", speed, 'coded')
         speeds_out.append(speed)
         forwarded.append(avg_forwarded)
         coded.append(avg_coded)
+
     return speeds_out,forwarded,coded
 
 def plot_slave_throughput(samples, slave):
@@ -121,23 +133,26 @@ def plot_slave_throughput(samples, slave):
     ax.set_title("Throughput vs. Offered Load for {}".format(slave.title()))
     ax.grid(True)
 
+    # Plot for with and without network coding enabled
     for coding in samples:
-        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = slaves_throughput(samples, coding, slave)
+        # Read averaged measurements
+        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = read_slaves_throughput(samples, coding, slave)
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         ax.plot(speeds, throughputs_avg[coding], linewidth=2, label=label, color=get_slave_color(coding, False))
         ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
 
+    # Add coding gain to plot with y-axis to the right
     ax_gain = ax.twinx()
     gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
     ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
     ax_gain.plot(speeds, [0]*len(speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
-    
+
     ax.legend(loc='upper left', shadow=True)
     ax_gain.legend(loc='upper right', shadow=True)
-    #ax.plot(speeds, speeds, color="#000000", linestyle="--")
-    
+
+    # Add figure to list of created figures
     figures['{}_tput'.format(slave)] = fig
     return speeds,throughputs_avg,throughputs_var,throughputs_std
 
@@ -149,6 +164,7 @@ def plot_total_throughputs(throughputs, speeds):
     agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding']) - 1
     agg_speeds = numpy.array(speeds) * len(throughputs['coding'])
 
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
@@ -156,18 +172,40 @@ def plot_total_throughputs(throughputs, speeds):
     ax.set_title("Aggregated Throughput vs. Offered Load")
     ax.grid(True)
 
+    # Plot data
     ax.plot(agg_speeds, agg['nocoding'], linewidth=2, label="Without Network Coding", color=get_slave_color('nocoding', False))
     ax.plot(agg_speeds, agg['coding'], linewidth=2, label="With Network Coding", color=get_slave_color('coding', False))
 
+    # Add coding gain to plot with y-axis to the right
     ax_gain = ax.twinx()
     ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
     ax_gain.plot(agg_speeds, [0]*len(agg_speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
     ax.legend(loc='upper left', shadow=True)
-    #ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
-   
+
+    # Add figure to list of created figures
     figures["agg_tput"] = fig
+
+def plot_total_delays(delays, speeds):
+    # Create and setup a new figure
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_ylabel("Delay [ms]")
+    ax.set_title("Average Delay vs. Offered Load")
+    ax.grid(True)
+
+    # Calculate the average delay
+    avg = {}
+    for coding in delays:
+        label = " With Network Coding" if coding == "coding" else " Without Network Coding"
+        summed = numpy.add.reduce(delays[coding])
+        avg = numpy.true_divide(summed, len(delays[coding]))
+        ax.plot(speeds, avg, linewidth=2, label=label, color=get_slave_color(coding, False))
+
+    # Add figure to list of created figures
+    figures["avg_delay"] = fig
 
 def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
@@ -179,45 +217,63 @@ def plot_coding_forward(data, node):
     coded_norm = numpy.true_divide(coded, total)
     total_norm = forwarded_norm + coded_norm
 
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Packets Ratio")
     ax.set_title("Packets Forwarded/Coded")
     ax.grid(True)
+
+    # Plot data
     ax.plot(speeds, forwarded_norm, linewidth=2, color=c['chameleon2'])
     ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
     ax.plot(speeds, total_norm, linewidth=2, color=c['plum2'])
     ax.legend(("Forwarded", "Coded", "Total"), loc='upper left', shadow=True)
 
+    # Add figure to list of created figures
     figures["{}_fw_coded".format(node)] = fig
 
 def plot_ath_stats(data, node):
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
     ax.set_title("Frame Transmission Errors for {}".format(node.title()))
     ax.grid(True)
-    
+
+    # Fields to read from measurements
     fields = ['tx_failed', 'tx_short_retries', 'tx_long_retries']
     field_name = {'tx_failed': "Failed Transmissions", 'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
+
+    # Read out each field and add to plot
     for field in fields:
+        # Do it with and without network coding
         for coding in data:
             tx = {'tx_failed': [], 'tx_short_retries': [], 'tx_long_retries': []}
             label = field_name[field] + (" With Network Coding" if coding == "coding" else " Without Network Coding")
             sample = data[coding]['nodes'][node]
             speeds = sorted(sample.keys())
+
+            # Read measurements for each speed
             for speed in speeds:
                 stats = sample[speed]
+                # Measurements are incremental, so we need the difference of first and last sample
                 t  = map(lambda val: val[-1]['ath'][field] - val[0]['ath'][field], stats)
                 tx[field].append(numpy.mean(t))
+
             ax.plot(speeds, tx[field], linewidth=2, label=label, color=get_tx_color(field, coding))
+
     ax.legend(loc='upper left', shadow=True)
 
+    # Add figure to list of created figures
     figures["{}_tx_err".format(node)] = fig
 
+    return speeds,tx
+
 def plot_coding_queue(data, node):
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
@@ -225,42 +281,60 @@ def plot_coding_queue(data, node):
     ax.set_title("Hold Queue Length for {}".format(node.title()))
     ax.grid(True)
 
+    # Read data for with and without network coding
     for coding in data:
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         sample = data[coding]['nodes'][node]
         speeds = sorted(sample.keys())
         queue_len = []
+
+        # Read measurements for each speed
         for speed in speeds:
             v = values(data, coding, node, "nodes", speed, "coding packets")
             queue_len.append(numpy.mean(v))
+
         ax.plot(speeds, queue_len, linewidth=2, label=label, color=get_slave_color(coding, False))
+
     ax.legend(loc='upper left', shadow=True)
 
+    # Add figure to list of created figures
     figures["{}_coding_queue".format(node)] = fig
 
 def plot_avg_delay(data, slave):
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
     ax.set_title("Average Delay for {}".format(slave.title()))
     ax.grid(True)
-    
+
+    # Read data for with and without network coding
+    delays = {}
     for coding in data:
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         sample = data[coding]['slaves'][slave]
         speeds = sorted(sample.keys())
         avg_delay = []
+
+        # Read measurements for each speed
         for speed in speeds:
             stats = sample[speed]
             ad = numpy.mean(map(lambda val: float(val['delay_avg']), stats))
             avg_delay.append(numpy.mean(ad))
+
+        delays[coding] = avg_delay
         ax.plot(speeds, avg_delay, linewidth=2, label=label, color=get_slave_color(coding, False))
+
     ax.legend(loc='upper left', shadow=True)
 
+    # Add figure to list of created figures
     figures["{}_delay".format(slave)] = fig
 
+    return speeds,delays
+
 def plot_node_cpu(data, node):
+    # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
@@ -268,88 +342,116 @@ def plot_node_cpu(data, node):
     ax.set_title("CPU Utilization for {}".format(node.title()))
     ax.grid(True)
 
+    # Read data for with and without network coding
     for coding in data:
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         sample = data[coding]['nodes'][node]
         speeds = sorted(sample.keys())
         cpu = []
+
+        # Read measurements for each speed
         for speed in speeds:
             cpu.append(numpy.mean(values(data, coding, node, "nodes", speed, "cpu")))
+
         ax.plot(speeds, cpu, linewidth=2, label=label, color=get_slave_color(coding, False))
+
     ax.legend(loc='upper left', shadow=True)
 
+    # Add figure to list of created figures
     figures["{}_cpu".format(node)] = fig
+
+def read_pickle(filename):
+    try:
+        data = cPickle.load(open(filename, "rb"))
+        if 'data' in data:
+            data = data['data']
+    except Exception as e:
+        print("Failed to unpickle {} ({})".format(filename, e))
+        sys.exit(1)
+
+    return data
+
+def save_figs(outdir, filename):
+    # Save figures to outdir
+    test_name = os.path.basename(filename).split(".pickle")[0]
+    outdir = "{}/{}".format(outdir, test_name)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    for figure in figures:
+        figures[figure].savefig("{}/{}_{}.pdf".format(outdir, test_name, figure))
+
+def remove_figs(data, args):
+    for slave in data['coding']['slaves']:
+        if not args.tput:
+            pylab.close(figures.pop("{}_tput".format(slave)))
+        if not args.delay:
+            pylab.close(figures.pop("{}_delay".format(slave)))
+
+    for node in data['coding']['nodes']:
+        if not args.cpu:
+            pylab.close(figures.pop("{}_cpu".format(node)))
+
+        if not args.ath:
+            pylab.close(figures.pop("{}_tx_err".format(node)))
+
+        if not node in data['coding']['slaves']:
+            if not args.forward:
+                pylab.close(figures.pop("{}_fw_coded".format(node)))
+
+            if not args.queue:
+                pylab.close(figures.pop("{}_coding_queue".format(node)))
+
 
 def main():
     parser = argparse.ArgumentParser(description="CATWOMAN test plotting tool.")
     parser.add_argument("--data", dest="data", default=None, help="Pickled data file. If no file is given, dummy data is used.")
-    parser.add_argument("--max", dest="max", default=0, help="Maximum value of theoretical limit throughput line")
-    parser.add_argument("--show", dest="show", action="store_true", help="Show generated plots")
     parser.add_argument("--out", dest="out", help="Output directory of figures")
-    parser.add_argument("--no-out", dest="noout", action="store_true", help="Disable pdf generation")
-    parser.add_argument("--no-throughput", dest="notput", action="store_true", help="Disable throughput plots")
-    parser.add_argument("--no-ath-stats", dest="noath", action="store_true", help="Disable Atheros driver stats plots")
-    parser.add_argument("--no-cpu", dest="nocpu", action="store_true", help="Disable CPU utilization plots")
-    parser.add_argument("--no-queue", dest="noqueue", action="store_true", help="Disable Coding Queue plots")
-    parser.add_argument("--no-forward", dest="noforward", action="store_true", help="Disable Coding/Forward plots")
-    parser.add_argument("--no-delay", dest="nodelay", action="store_true", help="Disable Delay plots")
+    parser.add_argument("--throughput", dest="tput", action="store_true", help="Show all throughput plots")
+    parser.add_argument("--ath-stats", dest="ath", action="store_true", help="Show all Atheros driver stats plots")
+    parser.add_argument("--cpu", dest="cpu", action="store_true", help="Show all CPU utilization plots")
+    parser.add_argument("--queue", dest="queue", action="store_true", help="Show all Coding Queue plots")
+    parser.add_argument("--delay", dest="delay", action="store_true", help="Show all Delay plots")
+    parser.add_argument("--forward", dest="forward", action="store_true", help="Show all Coding/Forward plots")
+    parser.add_argument("--all", dest="all", action="store_true", help="Show all plots!")
     args = parser.parse_args()
 
-    # Read in pickled data
-    if not args.data:
-        data = dummy.dummy['data']
-        param = dummy.dummy['param']
-        outdir = None
-    else:
-        try:
-            data = cPickle.load(open(args.data, "rb"))
-            if 'data' in data:
-                data = data['data']
-        except Exception as e:
-            print("Failed to unpickle {} ({})".format(args.data, e))
-            sys.exit(1)
-        else:
-            if not args.noout:
-                outdir = args.out if not args.out == None else os.path.dirname(args.data)
-            else:
-                outdir = None
+    data = read_pickle(args.data)
 
-    # Plot slave throughputs and aggregated throughtput
+    # Throughputs and delays
     throughput_agg = {'coding': [], 'nocoding': []}
+    delay_agg = {'coding': [], 'nocoding': []}
     for slave in data['coding']['slaves']:
-        if not args.nodelay:
-            plot_avg_delay(data, slave)
-        if not args.notput:
-            speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
+            # Read/plot slave throughputs and delays
+            speeds,throughputs_avg,throughputs_var,throughputs_std = plot_slave_throughput(data, slave)
+            speed,delays = plot_avg_delay(data, slave)
+
+            # Add data for later aggregation
             for coding in data:
                 throughput_agg[coding].append(throughputs_avg[coding])
-    if not args.notput:
-        plot_total_throughputs(throughput_agg, speeds)
+                delay_agg[coding].append(delays[coding])
+
+    # Plot the mean throughput and delay for all slaves
+    plot_total_throughputs(throughput_agg, speeds)
+    plot_total_delays(delay_agg, speeds)
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
-        if not args.noath:
-            plot_ath_stats(data, node)
-        if not args.nocpu:
-            plot_node_cpu(data, node)
+        plot_ath_stats(data, node)
+        plot_node_cpu(data, node)
+
+        # Forwards/codings and coding queue is only relevant for relay nodes
         if not node in data['coding']['slaves']:
-            if not args.noqueue:
-                plot_coding_queue(data, node)
-            if not args.noforward:
-                plot_coding_forward(data, node)
+            plot_coding_forward(data, node)
+            plot_coding_queue(data, node)
 
-    # Save figures to outdir
-    if not outdir == None:
-        test_name = os.path.basename(args.data).split(".pickle")[0]
-        outdir = "{}/{}".format(outdir, test_name)
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-        for figure in figures:
-            figures[figure].savefig("{}/{}_{}.pdf".format(outdir, test_name, figure))
+    # Save figures if not told otherwise
+    if args.out:
+        save_figs(args.out, args.data)
 
-    # Show figures
-    if args.show:
-        pylab.show()
+    if not args.all:
+        remove_figs(data, args)
+
+    pylab.show()
 
 if __name__ == "__main__":
     main()
