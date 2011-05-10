@@ -217,6 +217,27 @@ def plot_ath_stats(data, node):
 
     figures["{}_tx_err".format(node)] = fig
 
+def plot_coding_queue(data, node):
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_ylabel("Packets")
+    ax.set_title("Hold Queue Length for {}".format(node.title()))
+    ax.grid(True)
+
+    for coding in data:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        sample = data[coding]['nodes'][node]
+        speeds = sorted(sample.keys())
+        queue_len = []
+        for speed in speeds:
+            v = values(data, coding, node, "nodes", speed, "coding packets")
+            queue_len.append(numpy.mean(v))
+        ax.plot(speeds, queue_len, linewidth=2, label=label, color=get_slave_color(coding, False))
+    ax.legend(loc='upper left', shadow=True)
+
+    figures["{}_coding_queue".format(node)] = fig
+
 def plot_avg_delay(data, slave):
     fig = pylab.figure()
     ax = fig.add_subplot(111)
@@ -265,8 +286,14 @@ def main():
     parser.add_argument("--max", dest="max", default=0, help="Maximum value of theoretical limit throughput line")
     parser.add_argument("--show", dest="show", action="store_true", help="Show generated plots")
     parser.add_argument("--out", dest="out", help="Output directory of figures")
+    parser.add_argument("--no-out", dest="noout", action="store_true", help="Disable pdf generation")
+    parser.add_argument("--no-throughput", dest="notput", action="store_true", help="Disable throughput plots")
+    parser.add_argument("--no-ath-stats", dest="noath", action="store_true", help="Disable Atheros driver stats plots")
+    parser.add_argument("--no-cpu", dest="nocpu", action="store_true", help="Disable CPU utilization plots")
+    parser.add_argument("--no-queue", dest="noqueue", action="store_true", help="Disable Coding Queue plots")
+    parser.add_argument("--no-forward", dest="noforward", action="store_true", help="Disable Coding/Forward plots")
+    parser.add_argument("--no-delay", dest="nodelay", action="store_true", help="Disable Delay plots")
     args = parser.parse_args()
-
 
     # Read in pickled data
     if not args.data:
@@ -282,23 +309,34 @@ def main():
             print("Failed to unpickle {} ({})".format(args.data, e))
             sys.exit(1)
         else:
-            outdir = args.out if not args.out == None else os.path.dirname(args.data)
+            if not args.noout:
+                outdir = args.out if not args.out == None else os.path.dirname(args.data)
+            else:
+                outdir = None
 
     # Plot slave throughputs and aggregated throughtput
     throughput_agg = {'coding': [], 'nocoding': []}
     for slave in data['coding']['slaves']:
-        plot_avg_delay(data, slave)
-        speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
-        for coding in data:
-            throughput_agg[coding].append(throughputs_avg[coding])
-    plot_total_throughputs(throughput_agg, speeds)
+        if not args.nodelay:
+            plot_avg_delay(data, slave)
+        if not args.notput:
+            speeds, throughputs_avg, throughputs_var, throughputs_std = plot_slave_throughput(data, slave)
+            for coding in data:
+                throughput_agg[coding].append(throughputs_avg[coding])
+    if not args.notput:
+        plot_total_throughputs(throughput_agg, speeds)
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
-        plot_ath_stats(data, node)
-        plot_node_cpu(data, node)
+        if not args.noath:
+            plot_ath_stats(data, node)
+        if not args.nocpu:
+            plot_node_cpu(data, node)
         if not node in data['coding']['slaves']:
-            plot_coding_forward(data, node)
+            if not args.noqueue:
+                plot_coding_queue(data, node)
+            if not args.noforward:
+                plot_coding_forward(data, node)
 
     # Save figures to outdir
     if not outdir == None:
