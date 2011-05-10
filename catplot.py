@@ -122,8 +122,8 @@ def plot_slave_throughput(samples, slave):
     ax.grid(True)
 
     for coding in samples:
-        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = slaves_throughput(samples, coding, slave)
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         ax.plot(speeds, throughputs_avg[coding], linewidth=2, label=label, color=get_slave_color(coding, False))
         ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
 

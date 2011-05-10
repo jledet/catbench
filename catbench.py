@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
     parser.add_argument("--rate", type=str, dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
-    parser.add_argument("--penalty", type=str, dest="hop", default="200", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
+    parser.add_argument("--penalty", type=str, dest="hop", default="250", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
     args = parser.parse_args()
 
     if args.config == "ab":
@@ -96,6 +96,9 @@ def prepare_output(slaves, nodes, speeds, args):
             }
 
     for slave in slaves:
+        if not slave.flow:
+            continue
+
         output['data']['coding']['slaves'][slave.name] = {}
         output['data']['nocoding']['slaves'][slave.name] = {}
         for speed in speeds:
