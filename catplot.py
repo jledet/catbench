@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 import sys
+import os
+import os.path
 import numpy
 import pylab
 import argparse
@@ -38,14 +40,31 @@ c = {
     "skyblue3":     "#204a87",
 }
 
+figures = {}
+
+def get_tx_color(field, coding):
+    if coding == "coding":
+        if field == "tx_short_retries":
+            return c['skyblue1']
+        elif field == "tx_long_retries":
+            return c['plum3']
+        else:
+            return c['scarletred2']
+    else:
+        if field == "tx_short_retries":
+            return c['chameleon2']
+        elif field == "tx_long_retries":
+            return c['aluminium4']
+        else:
+            return c['orange2']
+
+
 def get_slave_color(coding, err):
     if coding == "coding":
+
         return c['skyblue1'] if err else c['skyblue2']
     else:
         return c['chameleon1'] if err else c['chameleon2']
-    #else:
-    #    return c[random.choice(list(c.keys()))]
-
 
 def values(samples, coding, device, type, speed, field):
     s = samples[coding][type][device][speed]
@@ -100,6 +119,7 @@ def plot_slave_throughput(samples, slave):
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
     ax.set_title("Throughput vs. Offered Load for {}".format(slave.title()))
+    ax.grid(True)
 
     for coding in samples:
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
@@ -117,7 +137,8 @@ def plot_slave_throughput(samples, slave):
     ax.legend(loc='upper left', shadow=True)
     ax_gain.legend(loc='upper right', shadow=True)
     #ax.plot(speeds, speeds, color="#000000", linestyle="--")
-
+    
+    figures['{}_tput'.format(slave)] = fig
     return speeds,throughputs_avg,throughputs_var,throughputs_std
 
 def plot_total_throughputs(throughputs, speeds):
@@ -133,6 +154,7 @@ def plot_total_throughputs(throughputs, speeds):
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
     ax.set_title("Aggregated Throughput vs. Offered Load")
+    ax.grid(True)
 
     ax.plot(agg_speeds, agg['nocoding'], linewidth=2, label="Without Network Coding", color=get_slave_color('nocoding', False))
     ax.plot(agg_speeds, agg['coding'], linewidth=2, label="With Network Coding", color=get_slave_color('coding', False))
@@ -142,8 +164,10 @@ def plot_total_throughputs(throughputs, speeds):
     ax_gain.plot(agg_speeds, [0]*len(agg_speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
-    #ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
     ax.legend(loc='upper left', shadow=True)
+    #ax.plot(agg_speeds, agg_speeds, color="#000000", linestyle="--")
+   
+    figures["agg_tput"] = fig
 
 def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
@@ -153,15 +177,20 @@ def plot_coding_forward(data, node):
     total = numpy.add.reduce((forwarded, numpy.array(coded)*2))
     forwarded_norm = numpy.true_divide(forwarded, total)
     coded_norm = numpy.true_divide(coded, total)
+    total_norm = forwarded_norm + coded_norm
 
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Packets Ratio")
     ax.set_title("Packets Forwarded/Coded")
+    ax.grid(True)
     ax.plot(speeds, forwarded_norm, linewidth=2, color=c['chameleon2'])
     ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
-    ax.legend(("Forwarded", "Coded"), loc='upper left', shadow=True)
+    ax.plot(speeds, total_norm, linewidth=2, color=c['plum2'])
+    ax.legend(("Forwarded", "Coded", "Total"), loc='upper left', shadow=True)
+
+    figures["{}_fw_coded".format(node)] = fig
 
 def plot_ath_stats(data, node):
     fig = pylab.figure()
@@ -169,25 +198,24 @@ def plot_ath_stats(data, node):
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
     ax.set_title("Frame Transmission Errors for {}".format(node.title()))
+    ax.grid(True)
     
-    for coding in data:
-        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
-        sample = data[coding]['nodes'][node]
-        speeds = sorted(sample.keys())
-        tx_failed        = []
-        tx_short_retries = []
-        tx_long_retries  = []
-        for speed in speeds:
-            stats = sample[speed]
-            #print(stats)
-            #tx_failed.append(stats[0][-1]['ath']['tx_failed'] - stats[0][0]['ath']['tx_failed'])
-            txsr = numpy.mean(map(lambda val: val[-1]['ath']['tx_short_retries'] - val[0]['ath']['tx_short_retries'], stats))
-            tx_short_retries.append(numpy.mean(txsr))
-            #tx_long_retries.append(stats[0][len(stats)]['ath']['tx_long_retries'] - stats[0][0]['ath']['tx_long_retries'])
-        #ax.plot(speeds, tx_failed, linewidth=2, label="Transmission Failed")
-        ax.plot(speeds, tx_short_retries, linewidth=2, label="RTS Retransmissions {}".format(label), color=get_slave_color(coding, False))
-        #ax.plot(speeds, tx_long_retries, linewidth=2, label="Long Frame Retransmission")
+    fields = ['tx_failed', 'tx_short_retries', 'tx_long_retries']
+    field_name = {'tx_failed': "Failed Transmissions", 'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
+    for field in fields:
+        for coding in data:
+            tx = {'tx_failed': [], 'tx_short_retries': [], 'tx_long_retries': []}
+            label = field_name[field] + (" With Network Coding" if coding == "coding" else " Without Network Coding")
+            sample = data[coding]['nodes'][node]
+            speeds = sorted(sample.keys())
+            for speed in speeds:
+                stats = sample[speed]
+                t  = map(lambda val: val[-1]['ath'][field] - val[0]['ath'][field], stats)
+                tx[field].append(numpy.mean(t))
+            ax.plot(speeds, tx[field], linewidth=2, label=label, color=get_tx_color(field, coding))
     ax.legend(loc='upper left', shadow=True)
+
+    figures["{}_tx_err".format(node)] = fig
 
 def plot_avg_delay(data, slave):
     fig = pylab.figure()
@@ -195,6 +223,7 @@ def plot_avg_delay(data, slave):
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
     ax.set_title("Average Delay for {}".format(slave.title()))
+    ax.grid(True)
     
     for coding in data:
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
@@ -207,16 +236,43 @@ def plot_avg_delay(data, slave):
             avg_delay.append(numpy.mean(ad))
         ax.plot(speeds, avg_delay, linewidth=2, label=label, color=get_slave_color(coding, False))
     ax.legend(loc='upper left', shadow=True)
+
+    figures["{}_delay".format(slave)] = fig
+
+def plot_node_cpu(data, node):
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_ylabel("Total CPU Utilization [%]")
+    ax.set_title("CPU Utilization for {}".format(node.title()))
+    ax.grid(True)
+
+    for coding in data:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        sample = data[coding]['nodes'][node]
+        speeds = sorted(sample.keys())
+        cpu = []
+        for speed in speeds:
+            cpu.append(numpy.mean(values(data, coding, node, "nodes", speed, "cpu")))
+        ax.plot(speeds, cpu, linewidth=2, label=label, color=get_slave_color(coding, False))
+    ax.legend(loc='upper left', shadow=True)
+
+    figures["{}_cpu".format(node)] = fig
+
 def main():
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--data", dest="data", default=None)
-    parser.add_argument("--max", dest="max", default=0)
+    parser = argparse.ArgumentParser(description="CATWOMAN test plotting tool.")
+    parser.add_argument("--data", dest="data", default=None, help="Pickled data file. If no file is given, dummy data is used.")
+    parser.add_argument("--max", dest="max", default=0, help="Maximum value of theoretical limit throughput line")
+    parser.add_argument("--show", dest="show", action="store_true", help="Show generated plots")
+    parser.add_argument("--out", dest="out", help="Output directory of figures")
     args = parser.parse_args()
+
 
     # Read in pickled data
     if not args.data:
         data = dummy.dummy['data']
         param = dummy.dummy['param']
+        outdir = None
     else:
         try:
             data = cPickle.load(open(args.data, "rb"))
@@ -225,6 +281,8 @@ def main():
         except Exception as e:
             print("Failed to unpickle {} ({})".format(args.data, e))
             sys.exit(1)
+        else:
+            outdir = args.out if not args.out == None else os.path.dirname(args.data)
 
     # Plot slave throughputs and aggregated throughtput
     throughput_agg = {'coding': [], 'nocoding': []}
@@ -238,10 +296,22 @@ def main():
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
         plot_ath_stats(data, node)
+        plot_node_cpu(data, node)
         if not node in data['coding']['slaves']:
             plot_coding_forward(data, node)
 
-    pylab.show()
+    # Save figures to outdir
+    if not outdir == None:
+        test_name = os.path.basename(args.data).split(".pickle")[0]
+        outdir = "{}/{}".format(outdir, test_name)
+        if not os.path.exists(outdir):
+            os.mkdir(outdir)
+        for figure in figures:
+            figures[figure].savefig("{}/{}_{}.pdf".format(outdir, test_name, figure))
+
+    # Show figures
+    if args.show:
+        pylab.show()
 
 if __name__ == "__main__":
     main()
