@@ -127,8 +127,8 @@ class Node():
         self.ip = None
         self.forward_ip = None
         self.port = 9988
-        nodes.append(self)
         self.endnode = False
+        nodes.append(self)
 
     def set_ip(self, ip, mac):
         self.ip = ip
@@ -161,10 +161,15 @@ def prepare_slaves():
         if slave.flow:
             slave.start()
 
-def configure_nodes(hold, rts, rate):
-    set_hold_nodes(hold)
-    set_rts_nodes(rts)
-    set_rate_nodes(rate)
+def configure_nodes(hold=None, rts=None, rate=None, hop=None):
+    if hold:
+        set_hold_nodes(hold)
+    if rts:
+        set_rts_nodes(rts)
+    if rate:
+        set_rate_nodes(rate)
+    if hop:
+        set_hop_penalty(hop)
 
 def signal_slaves(test):
     for slave in slaves:
@@ -213,7 +218,7 @@ def set_hold_nodes(hold="30"):
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
-        cmd.write_cmd(s, cmd.hold_path, hold)
+        cmd.write_cmd(s, cmd.hold_path, int(hold))
 
 def set_rate_nodes(rate="2", ifc="mesh0"):
     if not rate == "auto":
@@ -238,3 +243,12 @@ def set_coding_nodes(coding=True):
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
         cmd.write_cmd(s, cmd.catw_path, c)
+
+def set_hop_penalty(penalty="10"):
+    for node in nodes:
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        if node.endnode:
+            cmd.write_cmd(s, cmd.hop_path, penalty)
+        else:
+            cmd.write_cmd(s, cmd.hop_path, "0")

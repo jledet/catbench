@@ -27,11 +27,15 @@ def main():
     parser.add_argument("--sleep", type=int, dest="sleep", default=30, help="Sleep time between tests in seconds")
     parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
-    parser.add_argument("--rate", dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
+    parser.add_argument("--rate", type=str, dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
+    parser.add_argument("--penalty", type=str, dest="hop", default="200", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
     args = parser.parse_args()
 
     if args.config == "ab":
         import ab as setup
+        atexit.register(setup.stop_slaves)
+    if args.config == "x":
+        import x as setup
         atexit.register(setup.stop_slaves)
     else:
         print("Invalid setup")
@@ -52,7 +56,7 @@ def main():
     # Configure slaves and nodes
     setup.start_slaves()
     setup.prepare_slaves()
-    setup.configure_nodes(args.hold, args.rts, args.rate)
+    setup.configure_nodes(args.hold, args.rts, args.rate, args.hop)
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)

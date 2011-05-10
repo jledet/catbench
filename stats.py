@@ -98,7 +98,7 @@ class Stats(threading.Thread):
         for nexthop in origs:
             out[nexthop[0]] = (nexthop[2], nexthop[1])
 
-        self.check_origs(out)
+        #self.check_origs(out)
 
         return out
 
@@ -209,6 +209,8 @@ if __name__ == "__main__":
     node.forward_ip = args.node
     node.port = args.port
     node.group = 'nodes'
+    node.mac = "00:72:cf:28:19:da"
+    node.endnode = False
 
     try:
         s = Stats(node, args.interval)
