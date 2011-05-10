@@ -2,3 +2,5 @@
 *.swo
 *.pyc
 test.pickle
+data/*
+!data/*.pickle
