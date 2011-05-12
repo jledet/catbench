@@ -34,7 +34,7 @@ def main():
     if args.config == "ab":
         import ab as setup
         atexit.register(setup.stop_slaves)
-    if args.config == "x":
+    elif args.config == "x":
         import x as setup
         atexit.register(setup.stop_slaves)
     else:
