@@ -41,6 +41,7 @@ c = {
 }
 
 figures = {}
+param = None
 
 def get_tx_color(field, coding):
     if coding == "coding":
@@ -130,7 +131,7 @@ def plot_slave_throughput(samples, slave):
 
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Throughput vs. Offered Load for {}".format(slave.title()))
+    ax.set_title("Throughput vs. Offered Load for {} (hold: {})".format(slave.title(), param.hold))
     ax.grid(True)
 
     # Plot for with and without network coding enabled
@@ -169,7 +170,7 @@ def plot_total_throughputs(throughputs, speeds):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Aggregated Throughput vs. Offered Load")
+    ax.set_title("Aggregated Throughput vs. Offered Load (hold: {})".format(param.hold))
     ax.grid(True)
 
     # Plot data
@@ -193,7 +194,7 @@ def plot_total_delays(delays, speeds):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Delay [ms]")
-    ax.set_title("Average Delay vs. Offered Load")
+    ax.set_title("Average Delay vs. Offered Load (hold: {})".format(param.hold))
     ax.grid(True)
 
     # Calculate the average delay
@@ -222,7 +223,7 @@ def plot_coding_forward(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Packets Ratio")
-    ax.set_title("Packets Forwarded/Coded")
+    ax.set_title("Packets Forwarded/Coded (hold: {})".format(param.hold))
     ax.grid(True)
 
     # Plot data
@@ -240,7 +241,7 @@ def plot_ath_stats(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
-    ax.set_title("Frame Transmission Errors for {}".format(node.title()))
+    ax.set_title("Frame Transmission Errors for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
 
     # Fields to read from measurements
@@ -278,7 +279,7 @@ def plot_coding_queue(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Packets")
-    ax.set_title("Hold Queue Length for {}".format(node.title()))
+    ax.set_title("Hold Queue Length for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -306,7 +307,7 @@ def plot_avg_delay(data, slave):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
-    ax.set_title("Average Delay for {}".format(slave.title()))
+    ax.set_title("Average Delay for {} (hold: {})".format(slave.title(), param.hold))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -339,7 +340,7 @@ def plot_node_cpu(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Offered Load [kbit/s]")
     ax.set_ylabel("Total CPU Utilization [%]")
-    ax.set_title("CPU Utilization for {}".format(node.title()))
+    ax.set_title("CPU Utilization for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -362,14 +363,14 @@ def plot_node_cpu(data, node):
 
 def read_pickle(filename):
     try:
-        data = cPickle.load(open(filename, "rb"))
-        if 'data' in data:
-            data = data['data']
+        p = cPickle.load(open(filename, "rb"))
+        param = p['param']
+        data = p['data']
     except Exception as e:
         print("Failed to unpickle {} ({})".format(filename, e))
         sys.exit(1)
 
-    return data
+    return param,data
 
 def save_figs(outdir, filename):
     # Save figures to outdir
@@ -395,9 +396,6 @@ def remove_figs(data, args):
             pylab.close(figures.pop("{}_tx_err".format(node)))
 
         if not node in data['coding']['slaves']:
-            if not args.forward:
-                pylab.close(figures.pop("{}_fw_coded".format(node)))
-
             if not args.queue:
                 pylab.close(figures.pop("{}_coding_queue".format(node)))
 
@@ -411,11 +409,12 @@ def main():
     parser.add_argument("--cpu", dest="cpu", action="store_true", help="Show all CPU utilization plots")
     parser.add_argument("--queue", dest="queue", action="store_true", help="Show all Coding Queue plots")
     parser.add_argument("--delay", dest="delay", action="store_true", help="Show all Delay plots")
-    parser.add_argument("--forward", dest="forward", action="store_true", help="Show all Coding/Forward plots")
+    #parser.add_argument("--forward", dest="forward", action="store_true", help="Show all Coding/Forward plots")
     parser.add_argument("--all", dest="all", action="store_true", help="Show all plots!")
     args = parser.parse_args()
 
-    data = read_pickle(args.data)
+    global param
+    param,data = read_pickle(args.data)
 
     # Throughputs and delays
     throughput_agg = {'coding': [], 'nocoding': []}

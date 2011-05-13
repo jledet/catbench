@@ -26,8 +26,8 @@ def main():
     parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
     parser.add_argument("--sleep", type=int, dest="sleep", default=30, help="Sleep time between tests in seconds")
     parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
-    parser.add_argument("--disable-rts", action="store_false", dest="rts", default=True, help="Disbable IEEE 802.11 RTS/CTS")
-    parser.add_argument("--rate", type=str, dest="rate", default="2", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
+    parser.add_argument("--disable-rts", action="store_true", dest="disable_rts", help="Disbable IEEE 802.11 RTS/CTS")
+    parser.add_argument("--rate", type=str, dest="rate", default="11", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
     parser.add_argument("--penalty", type=str, dest="hop", default="250", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
     args = parser.parse_args()
 
@@ -56,7 +56,7 @@ def main():
     # Configure slaves and nodes
     setup.start_slaves()
     setup.prepare_slaves()
-    setup.configure_nodes(args.hold, args.rts, args.rate, args.hop)
+    setup.configure_nodes(args.hold, args.disable_rts, args.rate, args.hop)
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
@@ -136,7 +136,11 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     verb = "with" if coding else "without"
     iso_time = time.strftime("%H:%M:%S", time.gmtime(eta))
     print("# {} kbps test {} {} network coding (ETA: {})".format(speed, test, verb, iso_time))
-    setup.set_coding_nodes(coding)
+
+    if not setup.set_coding_nodes(coding):
+        print("Setting coding failed. Sleeping")
+        time.sleep(sleep)
+        return False
 
     # Record stats from each node
     stats.start(test)

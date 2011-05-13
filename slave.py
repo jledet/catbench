@@ -161,11 +161,11 @@ def prepare_slaves():
         if slave.flow:
             slave.start()
 
-def configure_nodes(hold=None, rts=None, rate=None, hop=None):
+def configure_nodes(hold=None, disable_rts=None, rate=None, hop=None):
     if hold:
         set_hold_nodes(hold)
-    if rts:
-        set_rts_nodes(rts)
+    if disable_rts != None:
+        set_rts_nodes(disable_rts)
     if rate:
         set_rate_nodes(rate)
     if hop:
@@ -230,19 +230,25 @@ def set_rate_nodes(rate="2", ifc="mesh0"):
         s = cmd.connect(host)
         cmd.exec_cmd(s, command)
 
-def set_rts_nodes(rts=True, ifc="mesh0"):
-    rts_th = "10" if rts else "off"
+def set_rts_nodes(disable_rts=False, ifc="mesh0"):
+    rts_th = "10" if not disable_rts else "off"
+    command = "iwconfig {} rts {}".format(ifc, rts_th)
     for node in nodes:
         host = "{}:{}".format(node.forward_ip, node.port)
         s = cmd.connect(host)
-        cmd.exec_cmd(s, "iwconfig {} rts {}".format(ifc, rts_th))
+        cmd.exec_cmd(s, command)
 
 def set_coding_nodes(coding=True):
     c = "1" if coding else "0"
-    for node in nodes:
-        host = "{}:{}".format(node.forward_ip, node.port)
-        s = cmd.connect(host)
-        cmd.write_cmd(s, cmd.catw_path, c)
+    try:
+        for node in nodes:
+            host = "{}:{}".format(node.forward_ip, node.port)
+            s = cmd.connect(host)
+            cmd.write_cmd(s, cmd.catw_path, c)
+    except Exception:
+        return False
+    else:
+        return True
 
 def set_hop_penalty(penalty="10"):
     for node in nodes:

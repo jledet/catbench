@@ -46,13 +46,17 @@ class Stats(threading.Thread):
                 if self.stop:
                     break
 
-                cpu = self.read_cpu()
-                ath = self.read_ath()
-                if cpu:
-                    self.origs = self.read_origs()
-                    stats = self.read_meas()
-                    stats = self.parse_meas(stats, cpu, self.origs, ath)
-                    self.append_stats(stats)
+                try:
+                    cpu = self.read_cpu()
+                    ath = self.read_ath()
+                    if cpu:
+                        self.origs = self.read_origs()
+                        stats = self.read_meas()
+                        stats = self.parse_meas(stats, cpu, self.origs, ath)
+                        self.append_stats(stats)
+                except Exception as e:
+                    print("Stats failed for {} ({})".format(self.name, e))
+                    self.error = True
 
                 time.sleep(self.interval)
 
@@ -98,7 +102,7 @@ class Stats(threading.Thread):
         for nexthop in origs:
             out[nexthop[0]] = (nexthop[2], nexthop[1])
 
-        #self.check_origs(out)
+        self.check_origs(out)
 
         return out
 
