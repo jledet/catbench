@@ -77,7 +77,7 @@ def values(samples, coding, device, type, speed, field):
     # Read the (last if node stats) sample for each test in the given speed
     values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
 
-    return numpy.mean(values),numpy.var(values),numpy.std(values)
+    return numpy.mean(values),numpy.var(values, ddof=1),numpy.std(values, ddof=1)
 
 def read_slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
@@ -131,7 +131,7 @@ def plot_slave_throughput(samples, slave):
 
     ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Throughput vs. Offered Load for {} (hold: {})".format(slave.title(), param.hold))
+    ax.set_title("Throughput vs. Offered Load for {} (hold: {} ms)".format(slave.title(), param.hold))
     ax.grid(True)
 
     # Plot for with and without network coding enabled
@@ -145,7 +145,10 @@ def plot_slave_throughput(samples, slave):
     # Add coding gain to plot with y-axis to the right
     ax_gain = ax.twinx()
     gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
+    gain_std = numpy.true_divide((numpy.array(throughputs_std['coding']) + numpy.array(throughputs_std['nocoding'])), numpy.array(throughputs_avg['nocoding']))
+    print(gain_std)
     ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.errorbar(speeds, gain, yerr=gain_std, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
     ax_gain.plot(speeds, [0]*len(speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
@@ -395,8 +398,8 @@ def remove_figs(data, args):
         if not args.cpu:
             pylab.close(figures.pop("{}_cpu".format(node)))
 
-        if not args.ath:
-            pylab.close(figures.pop("{}_tx_err".format(node)))
+        #if not args.ath:
+        #    pylab.close(figures.pop("{}_tx_err".format(node)))
 
         if not node in data['coding']['slaves']:
             if not args.queue:
@@ -438,7 +441,7 @@ def main():
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
-        plot_ath_stats(data, node)
+        #plot_ath_stats(data, node)
         plot_node_cpu(data, node)
 
         # Forwards/codings and coding queue is only relevant for relay nodes
