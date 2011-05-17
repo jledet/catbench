@@ -245,14 +245,17 @@ def plot_ath_stats(data, node):
     ax.grid(True)
 
     # Fields to read from measurements
-    fields = ['tx_failed', 'tx_short_retries', 'tx_long_retries']
-    field_name = {'tx_failed': "Failed Transmissions", 'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
+    #fields = ['tx_failed', 'tx_short_retries', 'tx_long_retries']
+    fields = ['tx_short_retries', 'tx_long_retries']
+    #field_name = {'tx_failed': "Failed Transmissions", 'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
+    field_name = {'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
 
     # Read out each field and add to plot
     for field in fields:
         # Do it with and without network coding
         for coding in data:
-            tx = {'tx_failed': [], 'tx_short_retries': [], 'tx_long_retries': []}
+            #tx = {'tx_failed': [], 'tx_short_retries': [], 'tx_long_retries': []}
+            tx = {'tx_short_retries': [], 'tx_long_retries': []}
             label = field_name[field] + (" With Network Coding" if coding == "coding" else " Without Network Coding")
             sample = data[coding]['nodes'][node]
             speeds = sorted(sample.keys())

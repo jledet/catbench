@@ -25,6 +25,7 @@ class Slave(threading.Thread):
         self.ip = None
         self.node = Node(self.name)
         self.flow = None
+        self.rate_ratio = 1
         slaves.append(self)
         self.stopped = False
         self.error = False
@@ -95,7 +96,8 @@ class Slave(threading.Thread):
             signal.wait()
 
             try:
-                command = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, self.speed, self.duration, self.interval)
+                speed = self.speed*self.rate_ratio
+                command = "iperf -c {} -u -fk -b{}k -t{} -i{}".format(self.flow.bat_ip, speed, self.duration, self.interval)
                 output = self.run_command(command)
 
                 r       = re.findall("(\d*\.?\d*) *Kbits/sec *(\d+\.\d+)+ ms *(\d+)/ *(\d+) *\((\d*\.?\d+)\%\)", output)[0]
@@ -161,7 +163,7 @@ def prepare_slaves():
         if slave.flow:
             slave.start()
 
-def configure_nodes(hold=None, disable_rts=None, rate=None, hop=None):
+def configure_nodes(hold=None, disable_rts=None, rate=None, hop=None, tx=None):
     if hold:
         set_hold_nodes(hold)
     if disable_rts != None:
@@ -170,6 +172,8 @@ def configure_nodes(hold=None, disable_rts=None, rate=None, hop=None):
         set_rate_nodes(rate)
     if hop:
         set_hop_penalty(hop)
+    if tx:
+        set_tx_nodes(tx)
 
 def signal_slaves(test):
     for slave in slaves:
@@ -258,3 +262,9 @@ def set_hop_penalty(penalty="10"):
             cmd.write_cmd(s, cmd.hop_path, penalty)
         else:
             cmd.write_cmd(s, cmd.hop_path, "0")
+
+def set_tx_nodes(tx):
+    for node in nodes:
+        host = "{}:{}".format(node.forward_ip, node.port)
+        s = cmd.connect(host)
+        cmd.exec_cmd(s, "iwconfig mesh0 txpower {}".format(tx))

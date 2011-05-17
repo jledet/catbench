@@ -25,9 +25,10 @@ def main():
     parser.add_argument("--step", type=int, dest="speed_step", default=50, help="Speed steps in kbit/s")
     parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
     parser.add_argument("--sleep", type=int, dest="sleep", default=30, help="Sleep time between tests in seconds")
-    parser.add_argument("--hold", type=str, dest="hold", default="30", help="Hold time when coding in ms")
+    parser.add_argument("--hold", type=str, dest="hold", default="10", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_true", dest="disable_rts", help="Disbable IEEE 802.11 RTS/CTS")
     parser.add_argument("--rate", type=str, dest="rate", default="11", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
+    parser.add_argument("--tx", type=str, dest="tx", default="10", help="TX Power in Dbm")
     parser.add_argument("--penalty", type=str, dest="hop", default="250", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
     args = parser.parse_args()
 
@@ -56,7 +57,7 @@ def main():
     # Configure slaves and nodes
     setup.start_slaves()
     setup.prepare_slaves()
-    setup.configure_nodes(args.hold, args.disable_rts, args.rate, args.hop)
+    setup.configure_nodes(args.hold, args.disable_rts, args.rate, args.hop, args.tx)
 
     stat_file = "stats_{}".format(args.outfile)
     stats.create(setup.nodes, args.interval, stat_file)
@@ -161,10 +162,12 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
     setup.restart_iperf_slaves()
 
     if not ret:
+        time.sleep(sleep)
         return False
 
     if not setup.check_slave_times():
         print("Slave time differs; restarting")
+        time.sleep(sleep)
         return False
 
     res = stats.results()

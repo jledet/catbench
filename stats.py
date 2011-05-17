@@ -79,7 +79,7 @@ class Stats(threading.Thread):
 
         out = {}
         out['tx_management'] = int(re.findall("(\d+) tx management frames", ath)[0])
-        out['tx_failed'] = int(re.findall("(\d+) tx failed due to too many retries", ath)[0])
+        #out['tx_failed'] = int(re.findall("(\d+) tx failed due to too many retries", ath)[0])
         out['tx_short_retries'] = int(re.findall("(\d+) short on-chip tx retries", ath)[0])
         out['tx_long_retries'] = int(re.findall("(\d+) long on-chip tx retries", ath)[0])
         out['tx_noack'] = int(re.findall("(\d+) tx frames with no ack marked", ath)[0])
@@ -207,8 +207,8 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    import config
-    node = config.Node(args.node)
+    import slave
+    node = slave.Node(args.node)
     node.ip = args.node
     node.forward_ip = args.node
     node.port = args.port
