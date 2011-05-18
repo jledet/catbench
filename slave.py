@@ -26,7 +26,9 @@ class Slave(threading.Thread):
         self.node = Node(self.name)
         self.flow = None
         self.rate_ratio = 1
+
         slaves.append(self)
+
         self.stopped = False
         self.error = False
         self.timestamp = None
@@ -45,6 +47,9 @@ class Slave(threading.Thread):
     def set_flow(self, flow):
         self.flow = flow
 
+    def add_route(self, orig, nexthop):
+        self.node.add_route(orig, nexthop)
+
     def run_command(self, command):
         return subprocess.check_output(["ssh", "-o", "PasswordAuthentication=no", "catwoman@{}".format(self.ip), command], stderr=subprocess.STDOUT)
 
@@ -53,10 +58,10 @@ class Slave(threading.Thread):
 
     def start_iperf(self):
         self.stop_iperf()
-        self.run_command("iperf -s -u &> /dev/null &")
+        self.run_command("iperf -s -u -B{} &> /dev/null &".format(self.bat_ip))
 
     def stop_tunnel(self):
-        os.system("ps aux | grep ssh | grep catwoman@{} | awk '{{print $2}}' | xargs kill".format(self.ip))
+        os.system("ps aux | grep ssh | grep catwoman@{} | grep {} | awk '{{print $2}}' | xargs kill".format(self.ip, self.node.port))
 
     def start_tunnel(self):
         self.stop_tunnel()
@@ -71,7 +76,7 @@ class Slave(threading.Thread):
             try:
                 command = "ping -q {} -w {}".format(self.flow.bat_ip, self.duration)
                 output  = self.run_command(command)
-        
+
                 min,avg,max,mdev = re.findall("(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)", output)[0]
                 self.delay_res = {
                         'delay_min': float(min),
@@ -130,7 +135,11 @@ class Node():
         self.forward_ip = None
         self.port = 9988
         self.endnode = False
+        self.routes = []
         nodes.append(self)
+
+    def add_route(self, orig, nexthop):
+        self.routes.append((orig.mac, nexthop.mac))
 
     def set_ip(self, ip, mac):
         self.ip = ip
@@ -184,9 +193,12 @@ def signal_slaves(test):
 
 def check_slave_times():
     max_diff = 1
-    last = slaves[0]
+    last = None
     for slave in slaves:
+        if slave.flow and not last:
+            last = slave
         if slave.flow and abs(last.timestamp - slave.timestamp) > max_diff:
+            print(slave.name)
             return False
     return True
 

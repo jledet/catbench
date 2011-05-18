@@ -14,10 +14,9 @@ class Stats(threading.Thread):
     def __init__(self, node, interval, gun=None):
         super(Stats, self).__init__(None)
         self.host = "{}:{}".format(node.forward_ip, node.port)
-        self.name = node.name
         self.group = node.group
-        self.endnode = node.endnode
-        self.mac = node.mac
+        self.name = node.name
+        self.node = node
         self.interval = interval
         self.gun = gun
 
@@ -55,7 +54,7 @@ class Stats(threading.Thread):
                         stats = self.parse_meas(stats, cpu, self.origs, ath)
                         self.append_stats(stats)
                 except Exception as e:
-                    print("Stats failed for {} ({})".format(self.name, e))
+                    print("Stats failed for {} ({})".format(self.node.name, e))
                     self.error = True
 
                 time.sleep(self.interval)
@@ -95,9 +94,9 @@ class Stats(threading.Thread):
 
     def read_origs(self):
         sock = cmd.connect(self.host)
-        origs = cmd.read_cmd(sock, cmd.orig_path)
+        inp = cmd.read_cmd(sock, cmd.orig_path)
         sock.close()
-        origs = re.findall("([0-9a-fA-F:]{17}) +\d\.\d+s +\((\d+)\) ([0-9a-fA-F:]{17})", origs)
+        origs = re.findall("([0-9a-fA-F:]{17}) +\d+\.\d+s +\(( *\d+)\) ([0-9a-fA-F:]{17})", inp)
         out = {}
         for nexthop in origs:
             out[nexthop[0]] = (nexthop[2], nexthop[1])
@@ -157,7 +156,22 @@ class Stats(threading.Thread):
         print
 
     def check_origs(self, origs):
-        if not self.endnode:
+        for route in self.node.routes:
+            if not origs.has_key(route[0]):
+                print("Route not found: {} -> {}".format(route[0], route[1]))
+                self.error = True
+                self.gun.clear()
+                return False
+
+            if origs[route[0]][0] != route[1]:
+                print("Wrong link detected: {} -> {}".format(route[0], origs[route[0]][0]))
+                self.error = True
+                self.gun.clear()
+                return False
+
+        return True
+
+        if not self.node.endnode:
             return
         for node in slave.nodes:
             if not node.endnode:

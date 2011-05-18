@@ -145,10 +145,10 @@ def plot_slave_throughput(samples, slave):
     # Add coding gain to plot with y-axis to the right
     ax_gain = ax.twinx()
     gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
-    gain_std = numpy.true_divide((numpy.array(throughputs_std['coding']) + numpy.array(throughputs_std['nocoding'])), numpy.array(throughputs_avg['nocoding']))
+    gain_std = numpy.true_divide(numpy.sqrt(numpy.array(throughputs_var['coding']) + numpy.array(throughputs_var['nocoding'])), numpy.array(throughputs_avg['nocoding']))
     print(gain_std)
     ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
-    ax_gain.errorbar(speeds, gain, yerr=gain_std, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
+    #ax_gain.errorbar(speeds, gain, yerr=gain_std, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
     ax_gain.plot(speeds, [0]*len(speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
