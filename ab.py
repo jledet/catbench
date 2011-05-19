@@ -3,7 +3,9 @@ from slave import *
 # Create Alice
 alice = Slave("alice")
 alice.set_ip("172.26.72.40", "10.10.0.9")
+#alice.set_ip("172.26.72.111", "10.10.0.10")
 alice.set_node_ip("10.10.0.100", "00:72:cf:28:19:1a")
+#alice.set_node_ip("10.10.0.106", "00:72:cf:28:19:a4")
 #alice.rate_ratio = 0.5
 
 # Create Bob

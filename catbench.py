@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--max", type=int, dest="speed_max", default=750, help="Maximum speed in kbit/s to test")
     parser.add_argument("--step", type=int, dest="speed_step", default=50, help="Speed steps in kbit/s")
     parser.add_argument("--interval", type=int, dest="interval", default=1, help="Probing interval in seconds for periodic stats")
-    parser.add_argument("--sleep", type=int, dest="sleep", default=30, help="Sleep time between tests in seconds")
+    parser.add_argument("--sleep", type=int, dest="sleep", default=60, help="Sleep time between tests in seconds")
     parser.add_argument("--hold", type=str, dest="hold", default="10", help="Hold time when coding in ms")
     parser.add_argument("--disable-rts", action="store_true", dest="disable_rts", help="Disbable IEEE 802.11 RTS/CTS")
     parser.add_argument("--rate", type=str, dest="rate", default="11", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
@@ -44,7 +44,7 @@ def main():
 
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
     overhead = 10
-    test_time = (args.duration + overhead)
+    test_time = (args.duration + overhead + 10)
     eta = test_time * args.tests * len(speeds) * 2
 
     start = time.time()
@@ -183,6 +183,7 @@ def run_test(setup, stats, output, coding, speed, test, eta, sleep):
         print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(slave.name.title(), **r))
 
     print
+    time.sleep(10)
     return True
 
 if __name__ == "__main__":
