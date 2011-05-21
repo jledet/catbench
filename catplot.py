@@ -4,6 +4,7 @@ import os
 import os.path
 import numpy
 import pylab
+import matplotlib.gridspec as gridspec
 import argparse
 import operator
 import random
@@ -82,10 +83,10 @@ def values(samples, coding, device, type, speed, field):
 def read_slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
     speeds = sorted(sample.keys())
-    speeds_out      = []
-    throughputs_avg = []
-    throughputs_var = []
-    throughputs_std = []
+    speeds_out      = [0]
+    throughputs_avg = [0]
+    throughputs_var = [0]
+    throughputs_std = [0]
 
     # Read measurements for each speed
     for speed in speeds:
@@ -127,9 +128,9 @@ def plot_slave_throughput(samples, slave):
     throughputs_var = {} 
     throughputs_std = {}
     fig = pylab.figure()
-    ax = fig.add_subplot(111)
+    gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
+    ax = fig.add_subplot(gs[0])
 
-    ax.set_xlabel("Offered Load [kb/s]")
     ax.set_ylabel("Throughput [kb/s]")
     ax.set_title("Throughput vs. Offered Load for {} (hold: {} ms)".format(slave.title(), param.hold))
     ax.grid(True)
@@ -143,15 +144,15 @@ def plot_slave_throughput(samples, slave):
         ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
 
     # Add coding gain to plot with y-axis to the right
-    ax_gain = ax.twinx()
+    ax_gain = fig.add_subplot(gs[1])
     gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
     gain_std = numpy.true_divide(numpy.sqrt(numpy.array(throughputs_var['coding']) + numpy.array(throughputs_var['nocoding'])), numpy.array(throughputs_avg['nocoding']))
-    print(gain_std)
-    ax_gain.plot(speeds, gain, linewidth=2, label="Coding Gain", color=c['scarletred2'])
+    ax_gain.plot(speeds, gain, linewidth=2, color=c['scarletred2'])
     #ax_gain.errorbar(speeds, gain, yerr=gain_std, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
-    ax_gain.plot(speeds, [0]*len(speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    ax_gain.set_xlabel("Offered Load [kb/s]")
+    ax_gain.grid(True)
 
     ax.legend(loc='upper left', shadow=True)
     ax_gain.legend(loc='upper right', shadow=True)
@@ -170,8 +171,8 @@ def plot_total_throughputs(throughputs, speeds):
 
     # Create and setup a new figure
     fig = pylab.figure()
-    ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kb/s]")
+    gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
+    ax = fig.add_subplot(gs[0])
     ax.set_ylabel("Throughput [kb/s]")
     ax.set_title("Aggregated Throughput vs. Offered Load (hold: {})".format(param.hold))
     ax.grid(True)
@@ -181,11 +182,12 @@ def plot_total_throughputs(throughputs, speeds):
     ax.plot(agg_speeds, agg['coding'], linewidth=2, label="With Network Coding", color=get_slave_color('coding', False))
 
     # Add coding gain to plot with y-axis to the right
-    ax_gain = ax.twinx()
+    ax_gain = fig.add_subplot(gs[1])
     ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
-    ax_gain.plot(agg_speeds, [0]*len(agg_speeds), "k")
     ax_gain.set_ylabel("Coding Gain")
+    ax_gain.set_xlabel("Offered Load [kb/s]")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    ax_gain.grid(True)
     ax.legend(loc='upper left', shadow=True)
 
     # Add figure to list of created figures
@@ -322,7 +324,7 @@ def plot_avg_delay(data, slave):
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         sample = data[coding]['slaves'][slave]
         speeds = sorted(sample.keys())
-        avg_delay = []
+        avg_delay = [0]
 
         # Read measurements for each speed
         for speed in speeds:
@@ -331,6 +333,7 @@ def plot_avg_delay(data, slave):
             avg_delay.append(numpy.mean(ad))
 
         delays[coding] = avg_delay
+        speeds.insert(0,0)
         ax.plot(speeds, avg_delay, linewidth=2, label=label, color=get_slave_color(coding, False))
 
     ax.legend(loc='upper left', shadow=True)

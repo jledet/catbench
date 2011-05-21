@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--rate", type=str, dest="rate", default="11", help="Wireless bitrate in Mbit/s. Use 'auto' for autoconfiguration")
     parser.add_argument("--tx", type=str, dest="tx", default="10", help="TX Power in Dbm")
     parser.add_argument("--penalty", type=str, dest="hop", default="250", help="The hop penalty for end-nodes. Relay nodes are set to zero.")
+    parser.add_argument("--toggle-tq", action="store_true", dest="tq", help="Test Random TQ selection instead of no coding.")
     args = parser.parse_args()
 
     if args.config == "ab":
@@ -71,13 +72,14 @@ def main():
             setup.configure_slaves(speed, args.duration, args.interval)
 
             # Run test with network coding
-            while not run_test(setup, stats, output, True, speed, test, eta, args.sleep):
+            while not run_test(setup, stats, output, speed, test, eta, args.sleep, coding=True, toggle_tq=args.tq):
                 pass
             eta -= test_time
 
             # Run test without network coding
-            while not run_test(setup, stats, output, False, speed, test, eta, args.sleep):
+            while not run_test(setup, stats, output, speed, test, eta, args.sleep, coding=False, toggle_tq=args.tq):
                 pass
+
             eta -= test_time
 
     end = time.time()
@@ -133,12 +135,13 @@ def save_output(output, filename):
     f.close()
     print("Data saved to {}".format(fn))
 
-def run_test(setup, stats, output, coding, speed, test, eta, sleep):
+def run_test(setup, stats, output, speed, test, eta, sleep, coding=True, toggle_tq=False):
     verb = "with" if coding else "without"
+    tq = "random tq" if toggle_tq else "network coding"
     iso_time = time.strftime("%H:%M:%S", time.gmtime(eta))
-    print("# {} kbps test {} {} network coding (ETA: {})".format(speed, test, verb, iso_time))
+    print("# {} kbps test {} {} {} (ETA: {})".format(speed, test, verb, tq, iso_time))
 
-    if not setup.set_coding_nodes(coding):
+    if not setup.set_coding_nodes(coding, toggle_tq):
         print("Setting coding failed. Sleeping")
         time.sleep(sleep)
         return False

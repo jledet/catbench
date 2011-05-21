@@ -255,13 +255,19 @@ def set_rts_nodes(disable_rts=False, ifc="mesh0"):
         s = cmd.connect(host)
         cmd.exec_cmd(s, command)
 
-def set_coding_nodes(coding=True):
+def set_coding_nodes(coding=True, toggle_tq=False):
     c = "1" if coding else "0"
     try:
         for node in nodes:
             host = "{}:{}".format(node.forward_ip, node.port)
-            s = cmd.connect(host)
-            cmd.write_cmd(s, cmd.catw_path, c)
+            if toggle_tq:
+                s = cmd.connect(host)
+                cmd.write_cmd(s, cmd.tq_path, c)
+                s = cmd.connect(host)
+                cmd.write_cmd(s, cmd.catw_path, "1")
+            else:
+                s = cmd.connect(host)
+                cmd.write_cmd(s, cmd.catw_path, c)
     except Exception:
         return False
     else:
