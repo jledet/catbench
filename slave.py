@@ -74,7 +74,7 @@ class Slave(threading.Thread):
         while not self.stopped:
             signal.wait()
             try:
-                command = "ping -q {} -w {}".format(self.flow.bat_ip, self.duration)
+                command = "ping -q {} -w {} || true".format(self.flow.bat_ip, self.duration)
                 output  = self.run_command(command)
 
                 min,avg,max,mdev = re.findall("(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)/(\d+\.?\d*)", output)[0]
@@ -90,6 +90,7 @@ class Slave(threading.Thread):
             except Exception as e:
                 if not self.stopped:
                     print("Delay failed for {}! ({})".format(self.name, e))
+                    print(output)
                 self.error = True
                 self.delay_finish.set()
 

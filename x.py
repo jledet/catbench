@@ -20,12 +20,23 @@ charlie.set_ip("172.26.72.111", "10.10.0.10")
 #charlie.set_node_ip("10.10.0.104", "00:72:cf:28:1c:0a")
 charlie.set_node_ip("10.10.0.106", "00:72:cf:28:19:a4")
 
+# Setup Dave
+dave = Slave("dave")
+dave.set_ip("172.26.72.41", "10.10.0.7")
+dave.set_node_ip("10.10.0.105", "00:72:cf:28:19:88")
+
 # Connect flows
-alice.set_flow(bob)
+alice.set_flow(dave)
 bob.set_flow(charlie)
+#charlie.set_flow(bob)
+#dave.set_flow(alice)
 
 # Setup route checks
 alice.add_route(bob.node, relay)
+alice.add_route(dave.node, relay)
 bob.add_route(alice.node, relay)
 bob.add_route(charlie.node, relay)
 charlie.add_route(bob.node, relay)
+charlie.add_route(dave.node, relay)
+dave.add_route(alice.node, relay)
+dave.add_route(charlie.node, relay)
