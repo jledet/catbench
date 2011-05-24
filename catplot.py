@@ -394,8 +394,8 @@ def remove_figs(data, args):
     for slave in data['coding']['slaves']:
         if not args.tput:
             pylab.close(figures.pop("{}_tput".format(slave)))
-        if not args.delay:
-            pylab.close(figures.pop("{}_delay".format(slave)))
+        #if not args.delay:
+            #pylab.close(figures.pop("{}_delay".format(slave)))
 
     for node in data['coding']['nodes']:
         if not args.cpu:
@@ -431,16 +431,16 @@ def main():
     for slave in data['coding']['slaves']:
             # Read/plot slave throughputs and delays
             speeds,throughputs_avg,throughputs_var,throughputs_std = plot_slave_throughput(data, slave)
-            speed,delays = plot_avg_delay(data, slave)
+            #speed,delays = plot_avg_delay(data, slave)
 
             # Add data for later aggregation
             for coding in data:
                 throughput_agg[coding].append(throughputs_avg[coding])
-                delay_agg[coding].append(delays[coding])
+                #delay_agg[coding].append(delays[coding])
 
     # Plot the mean throughput and delay for all slaves
     plot_total_throughputs(throughput_agg, speeds)
-    plot_total_delays(delay_agg, speeds)
+    #plot_total_delays(delay_agg, speeds)
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
