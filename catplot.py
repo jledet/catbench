@@ -41,6 +41,7 @@ c = {
     "skyblue3":     "#204a87",
 }
 
+pylab.rcParams.update({'legend.fontsize': 12})
 figures = {}
 param = None
 
@@ -78,19 +79,20 @@ def values(samples, coding, device, type, speed, field):
     # Read the (last if node stats) sample for each test in the given speed
     values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
 
-    return numpy.mean(values),numpy.var(values, ddof=1),numpy.std(values, ddof=1)
+    return numpy.mean(values),numpy.var(values, ddof=1),numpy.std(values, ddof=1),numpy.std(values, ddof=1)/numpy.sqrt(len(values))
 
 def read_slaves_throughput(samples, coding, slave):
     sample = samples[coding]['slaves'][slave]
     speeds = sorted(sample.keys())
     speeds_out      = [0]
-    throughputs_avg = [0]
+    throughputs_avg = [0.001] # This is such a hack, to keep true_divide from complaining...
     throughputs_var = [0]
     throughputs_std = [0]
+    throughputs_sem = [0]
 
     # Read measurements for each speed
     for speed in speeds:
-        avg,var,std = values(samples, coding, slave, "slaves", speed, 'throughput')
+        avg,var,std,sem = values(samples, coding, slave, "slaves", speed, 'throughput')
         if avg == None:
             continue
 
@@ -99,8 +101,9 @@ def read_slaves_throughput(samples, coding, slave):
         throughputs_avg.append(avg)
         throughputs_var.append(var)
         throughputs_std.append(std)
+        throughputs_sem.append(sem)
 
-    return speeds_out,throughputs_avg,throughputs_var,throughputs_std
+    return speeds_out,throughputs_avg,throughputs_var,throughputs_std,throughputs_sem
 
 def nodes_forwarded_coded(samples, coding, node):
     sample = samples[coding]['nodes'][node]
@@ -111,12 +114,12 @@ def nodes_forwarded_coded(samples, coding, node):
 
     # Read measurements for each speed
     for speed in speeds:
-        avg_forwarded,var_forwarded,std_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
+        avg_forwarded,var_forwarded,std_forwarded,sem_forwarded = values(samples, coding, node, "nodes", speed, 'forwarded')
         if avg_forwarded == None:
             continue
 
         # The speed contains measurements, so read and add data
-        avg_coded,var_coded,std_coded = values(samples, coding, node, "nodes", speed, 'coded')
+        avg_coded,var_coded,std_coded,sem_coded = values(samples, coding, node, "nodes", speed, 'coded')
         speeds_out.append(speed)
         forwarded.append(avg_forwarded)
         coded.append(avg_coded)
@@ -127,31 +130,33 @@ def plot_slave_throughput(samples, slave):
     throughputs_avg = {} 
     throughputs_var = {} 
     throughputs_std = {}
+    throughputs_sem = {}
     fig = pylab.figure()
     gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
     ax = fig.add_subplot(gs[0])
 
-    ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Throughput vs. Offered Load for {} (hold: {} ms)".format(slave.title(), param.hold))
+    ax.set_ylabel("Throughput [kbit/s]")
+    ax.set_title("Throughput vs. Total Offered Load for {} (hold: {} ms)".format(slave.title(), param.hold))
     ax.grid(True)
 
     # Plot for with and without network coding enabled
     for coding in samples:
         # Read averaged measurements
-        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding] = read_slaves_throughput(samples, coding, slave)
+        speeds, throughputs_avg[coding], throughputs_var[coding], throughputs_std[coding], throughputs_sem[coding] = read_slaves_throughput(samples, coding, slave)
+        speeds = numpy.array(speeds) * len(samples['coding']['slaves'])
         label = "With Network Coding" if coding == "coding" else "Without Network Coding"
         ax.plot(speeds, throughputs_avg[coding], linewidth=2, label=label, color=get_slave_color(coding, False))
-        ax.errorbar(speeds, throughputs_avg[coding], yerr=throughputs_std[coding], fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
+        ax.errorbar(speeds, throughputs_avg[coding], yerr=2*numpy.array(throughputs_sem[coding]), fmt=None, label='_nolegend_', ecolor=get_slave_color(coding, True))
 
     # Add coding gain to plot with y-axis to the right
     ax_gain = fig.add_subplot(gs[1])
     gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
-    gain_std = numpy.true_divide(numpy.sqrt(numpy.array(throughputs_var['coding']) + numpy.array(throughputs_var['nocoding'])), numpy.array(throughputs_avg['nocoding']))
+    gain_sem = numpy.true_divide(numpy.true_divide(numpy.sqrt(numpy.array(throughputs_var['coding']) + numpy.array(throughputs_var['nocoding'])), numpy.sqrt(param.tests)), numpy.array(throughputs_avg['nocoding']))
     ax_gain.plot(speeds, gain, linewidth=2, color=c['scarletred2'])
-    #ax_gain.errorbar(speeds, gain, yerr=gain_std, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
+    ax_gain.errorbar(speeds, gain, yerr=2*gain_sem, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
-    ax_gain.set_xlabel("Offered Load [kb/s]")
+    ax_gain.set_xlabel("Total Offered Load [kbit/s]")
     ax_gain.grid(True)
 
     ax.legend(loc='upper left', shadow=True)
@@ -167,14 +172,14 @@ def plot_total_throughputs(throughputs, speeds):
     agg['coding']   = numpy.add.reduce(throughputs['coding'])
     agg['nocoding'] = numpy.add.reduce(throughputs['nocoding'])
     agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding']) - 1
-    agg_speeds = numpy.array(speeds) * len(throughputs['coding'])
+    agg_speeds = numpy.array(speeds)
 
     # Create and setup a new figure
     fig = pylab.figure()
     gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
     ax = fig.add_subplot(gs[0])
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Aggregated Throughput vs. Offered Load (hold: {})".format(param.hold))
+    ax.set_title("Aggregated Throughput vs. Total Offered Load (hold: {})".format(param.hold))
     ax.grid(True)
 
     # Plot data
@@ -185,7 +190,7 @@ def plot_total_throughputs(throughputs, speeds):
     ax_gain = fig.add_subplot(gs[1])
     ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
     ax_gain.set_ylabel("Coding Gain")
-    ax_gain.set_xlabel("Offered Load [kb/s]")
+    ax_gain.set_xlabel("Total Offered Load [kbit/s]")
     ax_gain.set_ylim(ymin=-0.10, ymax=1)
     ax_gain.grid(True)
     ax.legend(loc='upper left', shadow=True)
@@ -197,9 +202,9 @@ def plot_total_delays(delays, speeds):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
-    ax.set_title("Average Delay vs. Offered Load (hold: {})".format(param.hold))
+    ax.set_title("Average Delay vs. Total Offered Load (hold: {})".format(param.hold))
     ax.grid(True)
 
     # Calculate the average delay
@@ -215,7 +220,7 @@ def plot_total_delays(delays, speeds):
 
 def plot_coding_forward(data, node):
     speeds,forwarded,coded = nodes_forwarded_coded(data, "coding", node)
-    speeds = 2 * numpy.array(speeds)
+    speeds =  len(data['coding']['slaves']) * numpy.array(speeds)
 
     # Normalize
     total = numpy.add.reduce((forwarded, numpy.array(coded)*2))
@@ -226,7 +231,7 @@ def plot_coding_forward(data, node):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kb/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Packets Ratio")
     ax.set_title("Packets Forwarded/Coded (hold: {})".format(param.hold))
     ax.grid(True)
@@ -234,7 +239,7 @@ def plot_coding_forward(data, node):
     # Plot data
     ax.plot(speeds, forwarded_norm, linewidth=2, color=c['chameleon2'])
     ax.plot(speeds, coded_norm, linewidth=2, color=c['skyblue2'])
-    ax.plot(speeds, total_norm, linewidth=2, color=c['plum2'])
+    ax.plot(speeds, total_norm, linewidth=2, color=c['scarletred2'])
     ax.legend(("Forwarded", "Coded", "Total"), loc='upper left', shadow=True)
 
     # Add figure to list of created figures
@@ -244,7 +249,7 @@ def plot_ath_stats(data, node):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
     ax.set_title("Frame Transmission Errors for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
@@ -272,6 +277,7 @@ def plot_ath_stats(data, node):
                 t  = map(lambda val: val[-1]['ath'][field] - val[0]['ath'][field], stats)
                 tx[field].append(numpy.mean(t))
 
+            speeds = numpy.array(speeds) * len(data['coding']['slaves'])
             ax.plot(speeds, tx[field], linewidth=2, label=label, color=get_tx_color(field, coding))
 
     ax.legend(loc='upper left', shadow=True)
@@ -285,7 +291,7 @@ def plot_coding_queue(data, node):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Packets")
     ax.set_title("Hold Queue Length for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
@@ -299,9 +305,10 @@ def plot_coding_queue(data, node):
 
         # Read measurements for each speed
         for speed in speeds:
-            v = values(data, coding, node, "nodes", speed, "coding packets")
+            v,std,var,sem = values(data, coding, node, "nodes", speed, "coding packets")
             queue_len.append(numpy.mean(v))
 
+        speeds = numpy.array(speeds) * len(data['coding']['slaves'])
         ax.plot(speeds, queue_len, linewidth=2, label=label, color=get_slave_color(coding, False))
 
     ax.legend(loc='upper left', shadow=True)
@@ -313,7 +320,7 @@ def plot_avg_delay(data, slave):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
     ax.set_title("Average Delay for {} (hold: {})".format(slave.title(), param.hold))
     ax.grid(True)
@@ -334,6 +341,7 @@ def plot_avg_delay(data, slave):
 
         delays[coding] = avg_delay
         speeds.insert(0,0)
+        speeds = numpy.array(speeds) * len(data['coding']['slaves'])
         ax.plot(speeds, avg_delay, linewidth=2, label=label, color=get_slave_color(coding, False))
 
     ax.legend(loc='upper left', shadow=True)
@@ -347,7 +355,7 @@ def plot_node_cpu(data, node):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
-    ax.set_xlabel("Offered Load [kbit/s]")
+    ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Total CPU Utilization [%]")
     ax.set_title("CPU Utilization for {} (hold: {})".format(node.title(), param.hold))
     ax.grid(True)
@@ -361,8 +369,10 @@ def plot_node_cpu(data, node):
 
         # Read measurements for each speed
         for speed in speeds:
-            cpu.append(numpy.mean(values(data, coding, node, "nodes", speed, "cpu")))
+            v,std,var,sem = values(data, coding, node, "nodes", speed, "cpu")
+            cpu.append(numpy.mean(v))
 
+        speeds = numpy.array(speeds) * len(data['coding']['slaves'])
         ax.plot(speeds, cpu, linewidth=2, label=label, color=get_slave_color(coding, False))
 
     ax.legend(loc='upper left', shadow=True)
