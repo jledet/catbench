@@ -12,11 +12,13 @@ bob = "10.10.0.8"
 bob_ssh = "bob"
 relay = "cwn1.personal.es.aau.dk:9988"
 timeout = "10"
-runs = 20
+runs = 25
 
-def run_test(slave, server, timeout):
+def run_test(slave, server, timeout, dual):
     exec_cmd(slave, "killall -9 -q iperf || true")
-    return exec_cmd(slave, "iperf -c{} -t{} -yc -d".format(server, timeout))
+    d = ' -d' if dual else ''
+    print "iperf -c{} -t{} -yc {}".format(server, timeout, d)
+    return exec_cmd(slave, "iperf -c{} -t{} -yc {}".format(server, timeout, d))
 
 def start_iperf(slave):
     exec_cmd(slave, "killall -9 -q iperf || true")
@@ -40,36 +42,55 @@ def set_tq(node, tq=True):
 def set_control(slave, control="cubic"):
     exec_cmd(slave, "sudo sysctl net.ipv4.tcp_congestion_control={}".format(control))
 
-def run_tests(server_slave, client_slave, server_node, relay, timeout):
+def run_tests(server_slave, client_slave, server_node, relay, timeout, dual=True):
     set_tq(relay, False)
     set_coding(relay, True)
-    start_iperf(alice_ssh)
-    print run_test(bob_ssh, alice, timeout)
+    start_iperf(server_slave)
+    print run_test(client_slave, server_node, timeout, dual)
     sys.stdout.flush()
 
     set_tq(relay, True)
     set_coding(relay, True)
-    start_iperf(alice_ssh)
-    print run_test(bob_ssh, alice, timeout)
+    start_iperf(server_slave)
+    print run_test(client_slave, server_node, timeout, dual)
     sys.stdout.flush()
 
     set_coding(relay, False)
-    start_iperf(alice_ssh)
-    print run_test(bob_ssh, alice, timeout)
+    start_iperf(server_slave)
+    print run_test(client_slave, server_node, timeout, dual)
     sys.stdout.flush()
 
 if __name__ == "__main__":
+    dual = True
     for i in range(runs):
         control = "vegas"
         print("Congestion control: {}\n".format(control))
         sys.stdout.flush()
         set_control(alice_ssh, control)
         set_control(bob_ssh, control)
-        run_tests(alice_ssh, bob_ssh, alice, relay, timeout)
+        run_tests(alice_ssh, bob_ssh, alice, relay, timeout, dual)
+        run_tests(bob_ssh, alice_ssh, bob, relay, timeout, dual)
 
         control = "cubic"
         print("Congestion control: {}\n".format(control))
         sys.stdout.flush()
         set_control(alice_ssh, control)
         set_control(bob_ssh, control)
-        run_tests(alice_ssh, bob_ssh, alice, relay, timeout)
+        run_tests(alice_ssh, bob_ssh, alice, relay, timeout, dual)
+        run_tests(bob_ssh, alice_ssh, bob, relay, timeout, dual)
+
+        control = "westwood"
+        print("Congestion control: {}\n".format(control))
+        sys.stdout.flush()
+        set_control(alice_ssh, control)
+        set_control(bob_ssh, control)
+        run_tests(alice_ssh, bob_ssh, alice, relay, timeout, dual)
+        run_tests(bob_ssh, alice_ssh, bob, relay, timeout, dual)
+
+        control = "veno"
+        print("Congestion control: {}\n".format(control))
+        sys.stdout.flush()
+        set_control(alice_ssh, control)
+        set_control(bob_ssh, control)
+        run_tests(alice_ssh, bob_ssh, alice, relay, timeout, dual)
+        run_tests(bob_ssh, alice_ssh, bob, relay, timeout, dual)

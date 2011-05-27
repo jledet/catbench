@@ -86,14 +86,15 @@ def avg_nodes(data):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("usage: {} <in> <out>".format(sys.argv[0]))
+    if len(sys.argv) < 2:
+        print("usage: {} <in> [<out>]".format(sys.argv[0]))
         sys.exit(1)
 
     p = pickle.load(open(sys.argv[1], "rb"))
     data = p['data']
     avg_nodes(data)
-    plt.savefig(sys.argv[2])
+    if len(sys.argv) > 2:
+        plt.savefig(sys.argv[2], bbox_inches='tight', pad_inches=0.05)
     plt.show()
 
 if __name__ == "__main__":
