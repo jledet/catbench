@@ -126,6 +126,23 @@ def nodes_forwarded_coded(samples, coding, node):
 
     return speeds_out,forwarded,coded
 
+def nodes_decoding_failed(samples, node):
+    sample = samples['coding']['nodes'][node]
+    speeds = sorted(sample.keys())
+    speeds_out = []
+    failed     = []
+
+    # Read measurements for each speed
+    for speed in speeds:
+        avg_failed,var_failed,std_failed,sem_failed = values(samples, 'coding', node, "nodes", speed, 'failed')
+        if avg_failed == None:
+            continue
+
+        speeds_out.append(speed)
+        failed.append(avg_failed)
+
+    return speeds_out,failed
+
 def plot_slave_throughput(samples, slave):
     throughputs_avg = {} 
     throughputs_var = {} 
@@ -136,7 +153,7 @@ def plot_slave_throughput(samples, slave):
     ax = fig.add_subplot(gs[0])
 
     ax.set_ylabel("Throughput [kbit/s]")
-    ax.set_title("Throughput vs. Total Offered Load for {} (hold: {} ms)".format(slave.title(), param.hold))
+    ax.set_title("Throughput vs. Total Offered Load for {})".format(slave.title()))
     ax.grid(True)
 
     # Plot for with and without network coding enabled
@@ -179,7 +196,7 @@ def plot_total_throughputs(throughputs, speeds):
     gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
     ax = fig.add_subplot(gs[0])
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Aggregated Throughput vs. Total Offered Load (hold: {})".format(param.hold))
+    ax.set_title("Aggregated Throughput vs. Total Offered Load)")
     ax.grid(True)
 
     # Plot data
@@ -204,7 +221,7 @@ def plot_total_delays(delays, speeds):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
-    ax.set_title("Average Delay vs. Total Offered Load (hold: {})".format(param.hold))
+    ax.set_title("Average Delay vs. Total Offered Load")
     ax.grid(True)
 
     # Calculate the average delay
@@ -233,7 +250,7 @@ def plot_coding_forward(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Packets Ratio")
-    ax.set_title("Packets Forwarded/Coded (hold: {})".format(param.hold))
+    ax.set_title("Packets Forwarded/Coded")
     ax.grid(True)
 
     # Plot data
@@ -245,13 +262,30 @@ def plot_coding_forward(data, node):
     # Add figure to list of created figures
     figures["{}_fw_coded".format(node)] = fig
 
+def plot_decoding_failed(data, node):
+    speeds,failed = nodes_decoding_failed(data, node)
+
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Total Offered Load [kbit/s]")
+    ax.set_ylabel("Packets")
+    ax.set_title("Decoding Failed for {}".format(node))
+    ax.grid(True)
+
+    # Plot data
+    ax.plot(speeds, failed, linewidth=2, color=c['scarletred2'])
+    ax.legend(("Decoding Failed",), loc='upper left', shadow=True)
+
+    # Add figure to list of created figures
+    figures["{}_failed".format(node)] = fig
+
 def plot_ath_stats(data, node):
     # Create and setup a new figure
     fig = pylab.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
-    ax.set_title("Frame Transmission Errors for {} (hold: {})".format(node.title(), param.hold))
+    ax.set_title("Frame Transmission Errors for {}".format(node.title()))
     ax.grid(True)
 
     # Fields to read from measurements
@@ -293,7 +327,7 @@ def plot_coding_queue(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Packets")
-    ax.set_title("Hold Queue Length for {} (hold: {})".format(node.title(), param.hold))
+    ax.set_title("Hold Queue Length for {})".format(node.title()))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -357,7 +391,7 @@ def plot_node_cpu(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Total CPU Utilization [%]")
-    ax.set_title("CPU Utilization for {} (hold: {})".format(node.title(), param.hold))
+    ax.set_title("CPU Utilization for {}".format(node.title()))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -461,6 +495,8 @@ def main():
         if not node in data['coding']['slaves']:
             plot_coding_forward(data, node)
             plot_coding_queue(data, node)
+        else:
+            plot_decoding_failed(data, node)
 
     # Save figures if not told otherwise
     if args.out:

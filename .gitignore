@@ -4,3 +4,4 @@
 test.pickle
 data/*
 !data/*.pickle
+!data/*.pcap

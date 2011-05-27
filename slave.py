@@ -95,8 +95,8 @@ class Slave(threading.Thread):
                 self.delay_finish.set()
 
     def run(self):
-        self.delay_thread = threading.Thread(None, self.delay_run)
-        self.delay_thread.start()
+        #self.delay_thread = threading.Thread(None, self.delay_run)
+        #self.delay_thread.start()
         while not self.stopped:
             # Wait for start signal
             signal.wait()
@@ -208,9 +208,9 @@ def wait_slaves():
     for slave in slaves:
         if slave.flow:
             slave.finish.wait()
-            slave.delay_finish.wait()
+            #slave.delay_finish.wait()
             slave.finish.clear()
-            slave.delay_finish.clear()
+            #slave.delay_finish.clear()
 
             if slave.error:
                 ret = False
@@ -227,7 +227,7 @@ def result_slaves():
     l = []
     for slave in slaves:
         if slave.flow:
-            slave.res.update(slave.delay_res)
+            #slave.res.update(slave.delay_res)
             l.append(slave.res)
     return l
 
