@@ -322,7 +322,7 @@ def plot_avg_delay(data, slave):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Delay [ms]")
-    ax.set_title("Average Delay for {} (hold: {})".format(slave.title(), param.hold))
+    ax.set_title("Average Delay for {}".format(slave.title()))
     ax.grid(True)
 
     # Read data for with and without network coding
