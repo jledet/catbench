@@ -144,6 +144,13 @@ def parse_line(line):
 def errorbars(tests):
     return (np.std(tests, ddof=1)/np.sqrt(len(tests)))*2
 
+def gain(a, b):
+    mean = lambda z: np.mean([a[z], b[z]])
+    tq = mean(0)
+    random = mean(1)
+    nocoding = mean(2)
+    return tq/nocoding,random/nocoding
+
 def plot_results_ab(results):
     bars_a_cubic = []
     bars_a_vegas = []
@@ -216,7 +223,7 @@ def plot_results_ab(results):
     errs_b_ww.append(errorbars(results['nocoding']['westwood'][node]))
 
     labels.append("TQ Selection")
-    labels.append("Random TQ Selection")
+    labels.append("Weighted TQ Selection")
     labels.append("No Network Coding")
 
     xavegas = [2, 7, 12]
@@ -228,8 +235,10 @@ def plot_results_ab(results):
 
     fig = pyplot.figure()
     ax = fig.add_subplot(1,1,1)
-    ax.set_title("TCP Throughput with Bidirectional Flows")
+    ax.set_title("TCP Throughput with Unidirectional Flows")
     ax.set_ylabel("Throughput [kbit/s]")
+    ax.yaxis.grid(True)
+    ax.set_axisbelow(True)
     pacubic = pyplot.bar(xacubic, bars_a_cubic, width, yerr=errs_a_cubic, color=c['skyblue2'], ecolor='black')
     pbcubic = pyplot.bar(np.array(xacubic)+width, bars_b_cubic, width, yerr=errs_b_cubic, color=c['skyblue3'], ecolor='black')
 
@@ -242,7 +251,12 @@ def plot_results_ab(results):
     paww = pyplot.bar(xaww, bars_a_ww, width, yerr=errs_a_ww, color=c['orange2'], ecolor='black')
     pbww = pyplot.bar(np.array(xaww)+width, bars_b_ww, width, yerr=errs_b_ww, color=c['orange3'], ecolor='black')
 
-    ax.yaxis.grid(True)
+    print("                 TQ    Random")
+    print("   Cubic gain:  {:4.2f}    {:4.2f}".format(*gain(bars_a_cubic, bars_b_cubic)))
+    print("   Vegas gain:  {:4.2f}    {:4.2f}".format(*gain(bars_a_vegas, bars_b_vegas)))
+    print("    Veno gain:  {:4.2f}    {:4.2f}".format(*gain(bars_a_veno, bars_b_veno)))
+    print("Westwood gain:  {:4.2f}    {:4.2f}".format(*gain(bars_a_ww, bars_b_ww)))
+
     pyplot.xticks(labels_x, labels)
     pyplot.legend((pacubic[0],pavegas[0],paww[0],paveno), ('Cubic','Vegas','Westwood','Veno'), shadow=True, loc='lower right')
 

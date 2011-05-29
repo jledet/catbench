@@ -45,7 +45,7 @@ def main():
 
     speeds = range(args.speed_min, args.speed_max+args.speed_step, args.speed_step)
     overhead = 10
-    test_time = (args.duration + overhead + 10)
+    test_time = (args.duration + overhead + args.sleep)
     eta = test_time * args.tests * len(speeds) * 2
 
     start = time.time()
@@ -186,7 +186,7 @@ def run_test(setup, stats, output, speed, test, eta, sleep, coding=True, toggle_
         print("{:10s} {throughput:5.1f} kb/s | {jitter:4.1f} ms | {lost:4d}/{total:4d} ({pl:4.1f}%)".format(slave.name.title(), **r))
 
     print
-    time.sleep(10)
+    time.sleep(sleep)
     return True
 
 if __name__ == "__main__":

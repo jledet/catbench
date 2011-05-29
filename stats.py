@@ -158,13 +158,13 @@ class Stats(threading.Thread):
     def check_origs(self, origs):
         for route in self.node.routes:
             if not origs.has_key(route[0]):
-                print("Route not found: {} -> {}".format(route[0], route[1]))
+                print("Route not found at {}: {} -> {}".format(self.node.name, route[0], route[1]))
                 self.error = True
                 self.gun.clear()
                 return False
 
             if origs[route[0]][0] != route[1]:
-                print("Wrong link detected: {} -> {}".format(route[0], origs[route[0]][0]))
+                print("Wrong link detected at {}: {} -> {}".format(self.node.name, route[0], origs[route[0]][0]))
                 self.error = True
                 self.gun.clear()
                 return False

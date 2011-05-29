@@ -438,19 +438,22 @@ def remove_figs(data, args):
     for slave in data['coding']['slaves']:
         if not args.tput:
             pylab.close(figures.pop("{}_tput".format(slave)))
-        #if not args.delay:
-            #pylab.close(figures.pop("{}_delay".format(slave)))
+        if not args.delay:
+            pylab.close(figures.pop("{}_delay".format(slave)))
 
     for node in data['coding']['nodes']:
         if not args.cpu:
             pylab.close(figures.pop("{}_cpu".format(node)))
 
-        #if not args.ath:
-        #    pylab.close(figures.pop("{}_tx_err".format(node)))
+        if not args.ath:
+            pylab.close(figures.pop("{}_tx_err".format(node)))
 
         if not node in data['coding']['slaves']:
             if not args.queue:
                 pylab.close(figures.pop("{}_coding_queue".format(node)))
+        else:
+            if not args.failed:
+                pylab.close(figures.pop("{}_failed".format(node)))
 
 
 def main():
@@ -462,11 +465,12 @@ def main():
     parser.add_argument("--cpu", dest="cpu", action="store_true", help="Show all CPU utilization plots")
     parser.add_argument("--queue", dest="queue", action="store_true", help="Show all Coding Queue plots")
     parser.add_argument("--delay", dest="delay", action="store_true", help="Show all Delay plots")
+    parser.add_argument("--failed", dest="failed", action="store_true", help="Show all Failed plots")
     #parser.add_argument("--forward", dest="forward", action="store_true", help="Show all Coding/Forward plots")
     parser.add_argument("--all", dest="all", action="store_true", help="Show all plots!")
     args = parser.parse_args()
 
-    global param
+    global param, fig
     param,data = read_pickle(args.data)
 
     # Throughputs and delays
@@ -488,7 +492,7 @@ def main():
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
-        #plot_ath_stats(data, node)
+        plot_ath_stats(data, node)
         plot_node_cpu(data, node)
 
         # Forwards/codings and coding queue is only relevant for relay nodes
