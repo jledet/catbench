@@ -14,7 +14,7 @@ def color():
 def end_nodes(data):
     nodes = []
     for node in data['coding']['nodes']:
-        if node in data['coding']['slaves']:
+        if node not in data['coding']['slaves']:
             nodes.append(node)
 
     return nodes
@@ -65,7 +65,7 @@ def avg_nodes(data):
     s,m = avg(data, 'relay', 'coded_x')
     s.insert(0,0), m.insert(0,0)
     plot('Coded (Relay)', s, m)
-    plt.legend()
+    plt.legend(prop=dict(size=12), numpoints=1, loc='upper left')
     a1.grid(True)
     a1.set_title("Decoding Failures Compared to Coded Packets")
     a1.set_xlabel("Offered Load [kbit/s]")
@@ -78,11 +78,12 @@ def avg_nodes(data):
     btm = None
     bars = []
     for node in end_nodes(data):
-        s,m= avg(data, node, 'failed')
-        bars.append(bar(node, s, m, btm))
-        btm = m
+        if node != 'relay':
+            s,m= avg(data, node, 'failed')
+            bars.append(bar(node, s, m, btm))
+            btm = m
 
-    plt.legend(bars, map(lambda x: "Failed ({})".format(x.title()), end_nodes(data)))
+    plt.legend(bars, map(lambda x: "Failed ({})".format(x.title()), end_nodes(data)), prop=dict(size=12), numpoints=1, loc='upper left')
 
 
 def main():
