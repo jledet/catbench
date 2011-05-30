@@ -12,7 +12,7 @@ bob = "10.10.0.8"
 bob_ssh = "bob"
 relay = "cwn1.personal.es.aau.dk:9988"
 timeout = "10"
-runs = 25
+runs = 50
 
 def run_test(slave, server, timeout, dual):
     exec_cmd(slave, "killall -9 -q iperf || true")
@@ -61,7 +61,7 @@ def run_tests(server_slave, client_slave, server_node, relay, timeout, dual=True
     sys.stdout.flush()
 
 if __name__ == "__main__":
-    dual = True
+    dual = False
     for i in range(runs):
         control = "vegas"
         print("Congestion control: {}\n".format(control))

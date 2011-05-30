@@ -84,6 +84,7 @@ def avg_nodes(data, coding):
     ax.set_title('From nodes to {} {}'.format(relay, c))
     ax.set_xlabel("Offered load [kbit/s]")
     ax.set_ylabel("Link TQ (#/255)")
+    ax.set_ylim(0,255)
     for node in end_nodes(data):
         avg_node(data, coding, relay, node, ingoing=True)
 
@@ -96,6 +97,7 @@ def avg_nodes(data, coding):
     ax.set_title('From {} to nodes {}'.format(relay, c))
     ax.set_xlabel("Offered load [kbit/s]")
     ax.set_ylabel("Link TQ (#/255)")
+    ax.set_ylim(0,255)
     for node in end_nodes(data):
         avg_node(data, coding, relay, node, ingoing=False)
 
