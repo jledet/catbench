@@ -153,7 +153,8 @@ def plot_slave_throughput(samples, slave):
     ax = fig.add_subplot(gs[0])
 
     ax.set_ylabel("Throughput [kbit/s]")
-    ax.set_title("Throughput vs. Total Offered Load for {})".format(slave.title()))
+    ax.set_title("Throughput vs. Total Offered Load for {}".format(slave.title()))
+    ax.set_ylim(ymin=0, ymax=2000)
     ax.grid(True)
 
     # Plot for with and without network coding enabled
@@ -167,12 +168,12 @@ def plot_slave_throughput(samples, slave):
 
     # Add coding gain to plot with y-axis to the right
     ax_gain = fig.add_subplot(gs[1])
-    gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding'])) - 1
+    gain = numpy.true_divide(numpy.array(throughputs_avg['coding']), numpy.array(throughputs_avg['nocoding']))
     gain_sem = numpy.true_divide(numpy.true_divide(numpy.sqrt(numpy.array(throughputs_var['coding']) + numpy.array(throughputs_var['nocoding'])), numpy.sqrt(param.tests)), numpy.array(throughputs_avg['nocoding']))
     ax_gain.plot(speeds, gain, linewidth=2, color=c['scarletred2'])
     ax_gain.errorbar(speeds, gain, yerr=2*gain_sem, fmt=None, label='_nolegend_', ecolor=c['scarletred1'])
     ax_gain.set_ylabel("Coding Gain")
-    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    ax_gain.set_ylim(ymin=0.90, ymax=2)
     ax_gain.set_xlabel("Total Offered Load [kbit/s]")
     ax_gain.grid(True)
 
@@ -188,7 +189,7 @@ def plot_total_throughputs(throughputs, speeds):
     agg = {}
     agg['coding']   = numpy.add.reduce(throughputs['coding'])
     agg['nocoding'] = numpy.add.reduce(throughputs['nocoding'])
-    agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding']) - 1
+    agg['gain']     = numpy.true_divide(agg['coding'], agg['nocoding'])
     agg_speeds = numpy.array(speeds)
 
     # Create and setup a new figure
@@ -196,7 +197,7 @@ def plot_total_throughputs(throughputs, speeds):
     gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
     ax = fig.add_subplot(gs[0])
     ax.set_ylabel("Throughput [kb/s]")
-    ax.set_title("Aggregated Throughput vs. Total Offered Load)")
+    ax.set_title("Aggregated Throughput vs. Total Offered Load")
     ax.grid(True)
 
     # Plot data
@@ -208,7 +209,7 @@ def plot_total_throughputs(throughputs, speeds):
     ax_gain.plot(agg_speeds, agg['gain'], linewidth=2, label="Coding Gain", color=c['scarletred2'])
     ax_gain.set_ylabel("Coding Gain")
     ax_gain.set_xlabel("Total Offered Load [kbit/s]")
-    ax_gain.set_ylim(ymin=-0.10, ymax=1)
+    ax_gain.set_ylim(ymin=0.90, ymax=2)
     ax_gain.grid(True)
     ax.legend(loc='upper left', shadow=True)
 
@@ -285,14 +286,14 @@ def plot_ath_stats(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Frames")
-    ax.set_title("Frame Transmission Errors for {}".format(node.title()))
+    ax.set_title("Frame Retransmissions for {}".format(node.title()))
     ax.grid(True)
 
     # Fields to read from measurements
     #fields = ['tx_failed', 'tx_short_retries', 'tx_long_retries']
     fields = ['tx_short_retries', 'tx_long_retries']
     #field_name = {'tx_failed': "Failed Transmissions", 'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
-    field_name = {'tx_short_retries': "RTS Retransmissions", 'tx_long_retries': "Frame Retransmission"}
+    field_name = {'tx_short_retries': "RTS,", 'tx_long_retries': "Data,"}
 
     # Read out each field and add to plot
     for field in fields:
@@ -300,7 +301,7 @@ def plot_ath_stats(data, node):
         for coding in data:
             #tx = {'tx_failed': [], 'tx_short_retries': [], 'tx_long_retries': []}
             tx = {'tx_short_retries': [], 'tx_long_retries': []}
-            label = field_name[field] + (" With Network Coding" if coding == "coding" else " Without Network Coding")
+            label = field_name[field] + (" with Network Coding" if coding == "coding" else " without Network Coding")
             sample = data[coding]['nodes'][node]
             speeds = sorted(sample.keys())
 
@@ -315,6 +316,7 @@ def plot_ath_stats(data, node):
             ax.plot(speeds, tx[field], linewidth=2, label=label, color=get_tx_color(field, coding))
 
     ax.legend(loc='upper left', shadow=True)
+    ax.set_ylim(ymin=0, ymax=6000)
 
     # Add figure to list of created figures
     figures["{}_tx_err".format(node)] = fig
@@ -327,7 +329,7 @@ def plot_coding_queue(data, node):
     ax = fig.add_subplot(111)
     ax.set_xlabel("Total Offered Load [kbit/s]")
     ax.set_ylabel("Packets")
-    ax.set_title("Hold Queue Length for {})".format(node.title()))
+    ax.set_title("Hold Queue Length for {}".format(node.title()))
     ax.grid(True)
 
     # Read data for with and without network coding
@@ -432,21 +434,21 @@ def save_figs(outdir, filename):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     for figure in figures:
-        figures[figure].savefig("{}/{}_{}.pdf".format(outdir, test_name, figure))
+        figures[figure].savefig("{}/{}_{}.pdf".format(outdir, test_name, figure), bbox_inches='tight', pad_inches=0.05)
 
 def remove_figs(data, args):
     for slave in data['coding']['slaves']:
         if not args.tput:
             pylab.close(figures.pop("{}_tput".format(slave)))
-        #if not args.delay:
-            #pylab.close(figures.pop("{}_delay".format(slave)))
+        if not args.delay:
+            pylab.close(figures.pop("{}_delay".format(slave)))
 
     for node in data['coding']['nodes']:
         if not args.cpu:
             pylab.close(figures.pop("{}_cpu".format(node)))
 
-        #if not args.ath:
-        #    pylab.close(figures.pop("{}_tx_err".format(node)))
+        if not args.ath:
+            pylab.close(figures.pop("{}_tx_err".format(node)))
 
         if not node in data['coding']['slaves']:
             if not args.queue:
@@ -488,7 +490,7 @@ def main():
 
     # Plot node forward/code counters
     for node in data['coding']['nodes']:
-        #plot_ath_stats(data, node)
+        plot_ath_stats(data, node)
         plot_node_cpu(data, node)
 
         # Forwards/codings and coding queue is only relevant for relay nodes
