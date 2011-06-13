@@ -17,7 +17,7 @@ import cPickle as pickle
 def main():
     parser = argparse.ArgumentParser(description="CATWOMAN benchmark program.")
     parser.add_argument("--output", dest="outfile", default="test.pickle", help="Output test data to FILE", metavar="FILE")
-    parser.add_argument("--config", dest="config", default="ab", help="Used configuration. Must be either 'ab' or 'x'")
+    parser.add_argument("--config", dest="config", default="ab", help="Used configuration. Must be either 'ab', 'chain' or 'x'")
     parser.add_argument("--tests", type=int, dest="tests", default=1, help="Number of test runs")
     parser.add_argument("--duration", type=int, dest="duration", default=60, help="Duration of each test in seconds")
     parser.add_argument("--min", type=int, dest="speed_min", default=200, help="Minimum speed to kbit/s test")
@@ -38,6 +38,9 @@ def main():
         atexit.register(setup.stop_slaves)
     elif args.config == "x":
         import x as setup
+        atexit.register(setup.stop_slaves)
+    elif args.config == "chain":
+        import chain as setup
         atexit.register(setup.stop_slaves)
     else:
         print("Invalid setup")

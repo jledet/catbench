@@ -78,14 +78,14 @@ class Stats(threading.Thread):
 
         out = {}
         out['tx_management'] = int(re.findall("(\d+) tx management frames", ath)[0])
-        out['tx_failed'] = int(re.findall("(\d+) tx failed due to too many retries", ath)[0])
+        #out['tx_failed'] = int(re.findall("(\d+) tx failed due to too many retries", ath)[0])
         out['tx_short_retries'] = int(re.findall("(\d+) short on-chip tx retries", ath)[0])
-        out['tx_long_retries'] = int(re.findall("(\d+) long on-chip tx retries", ath)[0])
+        #out['tx_long_retries'] = int(re.findall("(\d+) long on-chip tx retries", ath)[0])
         out['tx_noack'] = int(re.findall("(\d+) tx frames with no ack marked", ath)[0])
         out['tx_rts'] = int(re.findall("(\d+) tx frames with rts enabled", ath)[0])
         out['tx_short'] = int(re.findall("(\d+) tx frames with short preamble", ath)[0])
         out['rx_bad_crc'] = int(re.findall("(\d+) rx failed due to bad CRC", ath)[0])
-        out['rx_too_short'] = int(re.findall("(\d+) rx failed due to frame too short", ath)[0])
+        #out['rx_too_short'] = int(re.findall("(\d+) rx failed due to frame too short", ath)[0])
         out['rx_phy_err'] = int(re.findall("(\d+) PHY errors", ath)[0])
         out['rx'] = sum(map(lambda x: int(x), re.findall(" rx +(\d+)", ath)))
         out['tx'] = sum(map(lambda x: int(x), re.findall(" tx +(\d+)", ath)))
@@ -101,7 +101,7 @@ class Stats(threading.Thread):
         for nexthop in origs:
             out[nexthop[0]] = (nexthop[2], nexthop[1])
 
-        self.check_origs(out)
+        #self.check_origs(out)
 
         return out
 
@@ -216,7 +216,7 @@ def get_args():
     parser.add_argument('-n', dest='node', required=True)
     parser.add_argument('-f', dest='path', default='stats.csv')
     parser.add_argument('-i', dest='interval', default=1)
-    parser.add_argument('-p', dest='port', default=8899)
+    parser.add_argument('-p', dest='port', default=9988)
     return parser.parse_args()
 
 if __name__ == "__main__":
