@@ -6,7 +6,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 
-colors = ["#f57900", "#a40000", "#3465a4"]
+colors = ["#f57900", "#a40000", "#3465a4", "#204a87"]
+colors = {'alice': "#f57900", 'n4': "#cc0000", 'n5': "#3465a4", 'bob': "#73d216", 'coded': "#75507b"}
 
 def color():
     return colors.pop()
@@ -14,8 +15,7 @@ def color():
 def end_nodes(data):
     nodes = []
     for node in data['coding']['nodes']:
-        if node not in data['coding']['slaves']:
-            nodes.append(node)
+        nodes.append(node)
 
     return nodes
 
@@ -37,14 +37,12 @@ def read_field(test, field):
         return test[-1][field]
 
 def plot(node, speeds, meas):
-    plt.plot(speeds, meas, label=node, linewidth=2, color=color())
+    plt.plot(speeds, meas, label=node, linewidth=2, color=colors['coded'])
 
 def bar(node, speeds, meas, btm=None):
-    if not btm:
-        btm = [0]*len(speeds)
     w = (speeds[1] - speeds[0])*0.33
     speeds = np.array(speeds) - w
-    return plt.bar(speeds, meas, width=w, bottom=btm, color=color())[0]
+    return plt.bar(speeds, meas, width=w, bottom=btm, color=colors[node])[0]
 
 def avg(data, node, field):
     speed_meas = []
@@ -60,11 +58,14 @@ def avg(data, node, field):
 def avg_nodes(data):
     fig = plt.figure()
     gs = gridspec.GridSpec(2, 1, height_ratios=[2,1])
+
     a1 = fig.add_subplot(gs[0])
 
-    s,m = avg(data, 'relay', 'coded_x')
-    s.insert(0,0), m.insert(0,0)
-    plot('Coded (Relay)', s, m)
+    s1,m1 = avg(data, 'n4', 'coded')
+    s2,m2 = avg(data, 'n5', 'coded')
+    s=np.array(s1) + np.array(s2)
+    m=np.array(m1) + np.array(m2)
+    plot('Coded Packets', s, m)
     plt.legend(prop=dict(size=12), numpoints=1, loc='upper left')
     a1.grid(True)
     a1.set_title("Decoding Failures Compared to Coded Packets")
@@ -75,15 +76,16 @@ def avg_nodes(data):
     a2.set_xlabel("Offered Load [kbit/s]")
     a2.set_ylabel("Packets")
     a2.yaxis.grid(True)
-    btm = None
+    btm = np.array([])
     bars = []
     for node in end_nodes(data):
-        if node != 'relay':
-            s,m= avg(data, node, 'failed')
-            bars.append(bar(node, s, m, btm))
-            btm = m
+        s,m= avg(data, node, 'failed')
+        if not btm.any():
+            btm = np.zeros(len(s))
+        bars.append(bar(node, s, m, btm))
+        btm += m
 
-    plt.legend(bars, map(lambda x: "Failed ({})".format(x.title()), end_nodes(data)), prop=dict(size=12), numpoints=1, loc='upper left')
+    #plt.legend(bars, map(lambda x: "Failed ({})".format(x.title()), end_nodes(data)), prop=dict(size=12), numpoints=1, loc='upper left')
 
 
 def main():
