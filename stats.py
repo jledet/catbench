@@ -4,6 +4,7 @@ import argparse
 import time
 import cmd
 import threading
+import serial
 import re
 import slave
 
