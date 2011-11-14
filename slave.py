@@ -137,6 +137,9 @@ class Node():
         self.port = 9988
         self.endnode = False
         self.routes = []
+        self.serial = False
+        self.serial_path = None
+        self.serial_bitrate = None
         nodes.append(self)
 
     def add_route(self, orig, nexthop):
@@ -151,6 +154,11 @@ class Node():
         self.forward_ip = "localhost"
         self.endnode = True
         self.port = get_port()
+
+    def set_serial(self, path, bitrate):
+        self.serial = True
+        self.serial_path = path
+        self.serial_bitrate = bitrate
 
 def start_slaves():
     for slave in slaves:

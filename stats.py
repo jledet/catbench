@@ -27,6 +27,9 @@ class Stats(threading.Thread):
         self.total_idle = None
         self.error = False
 
+        if node.serial:
+            self.serial = serial.Serial(node.serial_path, node.serial_bitrate, timeout=1)
+
         self.view = False
         self.stop = False
         self.daemon = True
@@ -36,6 +39,7 @@ class Stats(threading.Thread):
         self.stop = True
         if not self.gun.is_set():
             self.gun.set()
+        self.serial.close()
 
     def run(self):
         try:
@@ -48,10 +52,11 @@ class Stats(threading.Thread):
                 try:
                     cpu = self.read_cpu()
                     ath = self.read_ath()
+                    pwr = self.read_power()
                     if cpu:
                         self.origs = self.read_origs()
                         stats = self.read_meas()
-                        stats = self.parse_meas(stats, cpu, self.origs, ath)
+                        stats = self.parse_meas(stats, cpu, self.origs, ath, pwr)
                         self.append_stats(stats)
                 except Exception as e:
                     print("Stats failed for {} ({})".format(self.node.name, e))
@@ -128,13 +133,22 @@ class Stats(threading.Thread):
             idle = self.total_idle - last_idle
             return int(100*(total - idle)/total)
 
-    def parse_meas(self, meas, cpu, origs, ath):
+    def read_power(self):
+        if not self.node.serial:
+            return None
+
+        line = self.serial.readline().strip()
+        (timestamp, power) = line.split()
+        return power
+
+    def parse_meas(self, meas, cpu, origs, ath, pwr):
         out = {}
         out['cpu'] = cpu
         out['test'] = self.test
         out['origs'] = origs
         out['ath'] = ath
         out['timestamp'] = int(time.time())
+        out['power'] = pwr
 
         for line in meas.split('\n'):
             if ':' not in line:
