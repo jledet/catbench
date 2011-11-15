@@ -76,8 +76,12 @@ def values(samples, coding, device, type, speed, field):
     if len(s) == 0:
         return None, None, None
 
-    # Read the (last if node stats) sample for each test in the given speed
-    values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
+    if field == "power":
+        values = map(lambda vls: numpy.average(map(lambda v: float(v[field]), vls[:])), s)
+        print values
+    else:
+        # Read the (last if node stats) sample for each test in the given speed
+        values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
 
     return numpy.mean(values),numpy.var(values, ddof=1),numpy.std(values, ddof=1),numpy.std(values, ddof=1)/numpy.sqrt(len(values))
 
@@ -416,6 +420,42 @@ def plot_node_cpu(data, node):
     # Add figure to list of created figures
     figures["{}_cpu".format(node)] = fig
 
+def plot_node_power(data, node):
+    print "Plotting {0} power".format(node)
+    # Check if data has power
+    speed = data['coding']['nodes'][node].keys()[0]
+    if "power" not in data['coding']['nodes'][node][speed][0][0].keys():
+        print "No power measurements"
+        return
+
+    fig = pylab.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("Total Offered Load [kbit/s]")
+    ax.set_ylabel("Total Consumption [%]")
+    ax.set_title("Power consumption for {}".format(node.title()))
+    ax.grid(True)
+
+    # Read data for with and without network coding
+    for coding in data:
+        label = "With Network Coding" if coding == "coding" else "Without Network Coding"
+        sample = data[coding]['nodes'][node]
+        speeds = sorted(sample.keys())
+        power = []
+
+        # Read measurements for each speed
+        for speed in speeds:
+            v,std,var,sem = values(data, coding, node, "nodes", speed, "power")
+            power.append(numpy.mean(v))
+
+        speeds = numpy.array(speeds) * len(data['coding']['slaves'])
+        ax.plot(speeds, power, linewidth=2, label=label, color=get_slave_color(coding, False))
+
+    ax.legend(loc='upper left', shadow=True)
+
+    # Add figure to list of created figures
+    figures["{}_power".format(node)] = fig
+
+
 def read_pickle(filename):
     try:
         p = cPickle.load(open(filename, "rb"))
@@ -453,6 +493,8 @@ def remove_figs(data, args):
         if not node in data['coding']['slaves']:
             if not args.queue:
                 pylab.close(figures.pop("{}_coding_queue".format(node)))
+            if not args.power:
+                pylab.close(figures.pop("{}_power".format(node)))
         else:
             if not args.failed:
                 pylab.close(figures.pop("{}_failed".format(node)))
@@ -468,6 +510,7 @@ def main():
     parser.add_argument("--queue", dest="queue", action="store_true", help="Show all Coding Queue plots")
     parser.add_argument("--delay", dest="delay", action="store_true", help="Show all Delay plots")
     parser.add_argument("--failed", dest="failed", action="store_true", help="Show all Failed plots")
+    parser.add_argument("--power", dest="power", action="store_true", help="Show Power Plots")
     #parser.add_argument("--forward", dest="forward", action="store_true", help="Show all Coding/Forward plots")
     parser.add_argument("--all", dest="all", action="store_true", help="Show all plots!")
     args = parser.parse_args()
@@ -501,6 +544,7 @@ def main():
         if not node in data['coding']['slaves']:
             plot_coding_forward(data, node)
             plot_coding_queue(data, node)
+            plot_node_power(data, node)
         else:
             plot_decoding_failed(data, node)
 
