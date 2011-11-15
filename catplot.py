@@ -78,7 +78,6 @@ def values(samples, coding, device, type, speed, field):
 
     if field == "power":
         values = map(lambda vls: numpy.average(map(lambda v: float(v[field]), vls[:])), s)
-        print values
     else:
         # Read the (last if node stats) sample for each test in the given speed
         values = map(lambda vls: vls[-1][field] if type == "nodes" else vls[field], s)
